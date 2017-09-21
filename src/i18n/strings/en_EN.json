@@ -527,7 +527,7 @@
     "User ID": "User ID",
     "User Interface": "User Interface",
     "%(user)s is a": "%(user)s is a",
-    "User name": "User name",
+    "User name": "Username",
     "%(userName)s (power %(powerLevelNumber)s)": "%(userName)s (power %(powerLevelNumber)s)",
     "Username invalid: %(errMessage)s": "Username invalid: %(errMessage)s",
     "Users": "Users",
