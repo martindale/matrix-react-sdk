@@ -127,7 +127,8 @@ module.exports = React.createClass({
 
     render: function() {
         var serverConfigStyle = {};
-        serverConfigStyle.display = this.state.configVisible ? 'block' : 'none';
+        //serverConfigStyle.display = this.state.configVisible ? 'block' : 'none';
+        serverConfigStyle.display = 'none';
 
         var toggleButton;
         if (this.props.withToggleButton) {

@@ -338,9 +338,6 @@ module.exports = React.createClass({
         return (
             <div>
                 <form onSubmit={this.onSubmit}>
-                    {emailSection}
-                    {belowEmailSection}
-                    {phoneSection}
                     <input type="text" ref="username"
                         placeholder={ placeholderUserName } defaultValue={this.props.defaultUsername}
                         className={this._classForField(FIELD_USERNAME, 'mx_Login_field')}
@@ -356,6 +353,10 @@ module.exports = React.createClass({
                         className={this._classForField(FIELD_PASSWORD_CONFIRM, 'mx_Login_field')}
                         onBlur={function() {self.validateField(FIELD_PASSWORD_CONFIRM);}}
                         defaultValue={this.props.defaultPassword} />
+                    <br />
+                    {emailSection}
+                    {belowEmailSection}
+                    {phoneSection}
                     <br />
                     {registerButton}
                 </form>

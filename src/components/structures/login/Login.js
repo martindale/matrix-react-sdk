@@ -277,7 +277,7 @@ module.exports = React.createClass({
 
     componentForStep: function(step) {
         switch (step) {
-            case 'm.login.password':
+            default:
                 const PasswordLogin = sdk.getComponent('login.PasswordLogin');
                 return (
                     <PasswordLogin
@@ -291,20 +291,6 @@ module.exports = React.createClass({
                         onForgotPasswordClick={this.props.onForgotPasswordClick}
                         loginIncorrect={this.state.loginIncorrect}
                     />
-                );
-            case 'm.login.cas':
-                const CasLogin = sdk.getComponent('login.CasLogin');
-                return (
-                    <CasLogin onSubmit={this.onCasLogin} />
-                );
-            default:
-                if (!step) {
-                    return;
-                }
-                return (
-                    <div>
-                    { _t('Sorry, this homeserver is using a login which is not recognised ')}({step})
-                    </div>
                 );
         }
     },
@@ -354,9 +340,7 @@ module.exports = React.createClass({
                 <div className="mx_Login_box">
                     <LoginHeader />
                     <div>
-                        <h2>{ _t('Sign in')}
-                            { loader }
-                        </h2>
+                        <h2>{ loader }</h2>
                         { this.componentForStep(this.state.currentFlow) }
                         <ServerConfig ref="serverConfig"
                             withToggleButton={true}
@@ -374,7 +358,6 @@ module.exports = React.createClass({
                         </a>
                         { loginAsGuestJsx }
                         { returnToAppJsx }
-                        { this._renderLanguageSetting() }
                         <LoginFooter />
                     </div>
                 </div>
