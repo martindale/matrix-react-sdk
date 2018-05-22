@@ -31,14 +31,14 @@ export function looksValid(phoneNumber) {
 
 export const COUNTRIES = [
     {
-        "iso2": "GB",
-        "name": "United Kingdom",
-        "prefix": "44",
-    },
-    {
         "iso2": "US",
         "name": "United States",
         "prefix": "1",
+    },
+    {
+        "iso2": "GB",
+        "name": "United Kingdom",
+        "prefix": "44",
     },
     {
         "iso2": "AF",
