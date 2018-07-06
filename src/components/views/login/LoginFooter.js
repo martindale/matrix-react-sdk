@@ -25,7 +25,7 @@ module.exports = React.createClass({
     render: function() {
         return (
             <div className="mx_Login_links">
-                <!-- <a href="https://matrix.org">{ _t("powered by Matrix") }</a> -->
+                <strong>Made with <a href="https://maki.io">💗</a>.</strong>
             </div>
         );
     },
