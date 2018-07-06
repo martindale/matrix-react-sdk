@@ -32,9 +32,11 @@ import SdkConfig from '../../../SdkConfig';
 import dis from '../../../dispatcher';
 import { _t } from '../../../languageHandler';
 import MatrixClientPeg from '../../../MatrixClientPeg';
-import ContextualMenu from '../../structures/ContextualMenu';
+import * as ContextualMenu from '../../structures/ContextualMenu';
 import SettingsStore from "../../../settings/SettingsStore";
 import PushProcessor from 'matrix-js-sdk/lib/pushprocessor';
+import ReplyThread from "../elements/ReplyThread";
+import {host as matrixtoHost} from '../../../matrix-to';
 
 linkifyMatrix(linkify);
 
@@ -59,10 +61,6 @@ module.exports = React.createClass({
 
         /* the shape of the tile, used */
         tileShape: PropTypes.string,
-    },
-
-    contextTypes: {
-        addRichQuote: PropTypes.func,
     },
 
     getInitialState: function() {
@@ -186,7 +184,6 @@ module.exports = React.createClass({
 
                 // If the link is a (localised) matrix.to link, replace it with a pill
                 const Pill = sdk.getComponent('elements.Pill');
-                const Quote = sdk.getComponent('elements.Quote');
                 if (Pill.isMessagePillUrl(href)) {
                     const pillContainer = document.createElement('span');
 
@@ -205,21 +202,6 @@ module.exports = React.createClass({
 
                     // update the current node with one that's now taken its place
                     node = pillContainer;
-                } else if (SettingsStore.isFeatureEnabled("feature_rich_quoting") && Quote.isMessageUrl(href)) {
-                    if (this.context.addRichQuote) { // We're already a Rich Quote so just append the next one above
-                        this.context.addRichQuote(href);
-                        node.remove();
-                    } else { // We're the first in the chain
-                        const quoteContainer = document.createElement('span');
-
-                        const quote =
-                            <Quote url={href} parentEv={this.props.mxEvent} node={node} />;
-
-                        ReactDOM.render(quote, quoteContainer);
-                        node.parentNode.replaceChild(quoteContainer, node);
-                        node = quoteContainer;
-                    }
-                    pillified = true;
                 }
             } else if (node.nodeType == Node.TEXT_NODE) {
                 const Pill = sdk.getComponent('elements.Pill');
@@ -323,7 +305,7 @@ module.exports = React.createClass({
             // never preview matrix.to links (if anything we should give a smart
             // preview of the room/user they point to: nobody needs to be reminded
             // what the matrix.to site looks like).
-            if (host == 'matrix.to') return false;
+            if (host === matrixtoHost) return false;
 
             if (node.textContent.toLowerCase().trim().startsWith(host.toLowerCase())) {
                 // it's a "foo.pl" style link
@@ -355,8 +337,8 @@ module.exports = React.createClass({
                     left: x,
                     top: y,
                     message: successful ? _t('Copied!') : _t('Failed to copy'),
-                });
-                e.target.onmouseout = close;
+                }, false);
+                e.target.onmouseleave = close;
             };
             p.appendChild(button);
         });
@@ -441,8 +423,11 @@ module.exports = React.createClass({
         const mxEvent = this.props.mxEvent;
         const content = mxEvent.getContent();
 
+        const stripReply = ReplyThread.getParentEventId(mxEvent);
         let body = HtmlUtils.bodyToHtml(content, this.props.highlights, {
             disableBigEmoji: SettingsStore.getValue('TextualBody.disableBigEmoji'),
+            // Part of Replies fallback support
+            stripReplyFallback: stripReply,
         });
 
         if (this.props.highlightLink) {

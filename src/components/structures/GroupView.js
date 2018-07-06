@@ -27,7 +27,6 @@ import AccessibleButton from '../views/elements/AccessibleButton';
 import Modal from '../../Modal';
 import classnames from 'classnames';
 
-import GroupStoreCache from '../../stores/GroupStoreCache';
 import GroupStore from '../../stores/GroupStore';
 import FlairStore from '../../stores/FlairStore';
 import { showGroupAddRoomDialog } from '../../GroupAddressPicker';
@@ -93,8 +92,8 @@ const CategoryRoomList = React.createClass({
                 if (!success) return;
                 const errorList = [];
                 Promise.all(addrs.map((addr) => {
-                    return this.context.groupStore
-                        .addRoomToGroupSummary(addr.address)
+                    return GroupStore
+                        .addRoomToGroupSummary(this.props.groupId, addr.address)
                         .catch(() => { errorList.push(addr.address); })
                         .reflect();
                 })).then(() => {
@@ -174,7 +173,8 @@ const FeaturedRoom = React.createClass({
     onDeleteClicked: function(e) {
         e.preventDefault();
         e.stopPropagation();
-        this.context.groupStore.removeRoomFromGroupSummary(
+        GroupStore.removeRoomFromGroupSummary(
+            this.props.groupId,
             this.props.summaryInfo.room_id,
         ).catch((err) => {
             console.error('Error whilst removing room from group summary', err);
@@ -269,7 +269,7 @@ const RoleUserList = React.createClass({
                 if (!success) return;
                 const errorList = [];
                 Promise.all(addrs.map((addr) => {
-                    return this.context.groupStore
+                    return GroupStore
                         .addUserToGroupSummary(addr.address)
                         .catch(() => { errorList.push(addr.address); })
                         .reflect();
@@ -344,7 +344,8 @@ const FeaturedUser = React.createClass({
     onDeleteClicked: function(e) {
         e.preventDefault();
         e.stopPropagation();
-        this.context.groupStore.removeUserFromGroupSummary(
+        GroupStore.removeUserFromGroupSummary(
+            this.props.groupId,
             this.props.summaryInfo.user_id,
         ).catch((err) => {
             console.error('Error whilst removing user from group summary', err);
@@ -390,15 +391,6 @@ const FeaturedUser = React.createClass({
     },
 });
 
-const GroupContext = {
-    groupStore: PropTypes.instanceOf(GroupStore).isRequired,
-};
-
-CategoryRoomList.contextTypes = GroupContext;
-FeaturedRoom.contextTypes = GroupContext;
-RoleUserList.contextTypes = GroupContext;
-FeaturedUser.contextTypes = GroupContext;
-
 const GROUP_JOINPOLICY_OPEN = "open";
 const GROUP_JOINPOLICY_INVITE = "invite";
 
@@ -413,12 +405,6 @@ export default React.createClass({
 
     childContextTypes: {
         groupStore: PropTypes.instanceOf(GroupStore),
-    },
-
-    getChildContext: function() {
-        return {
-            groupStore: this._groupStore,
-        };
     },
 
     getInitialState: function() {
@@ -440,16 +426,20 @@ export default React.createClass({
     },
 
     componentWillMount: function() {
+        this._unmounted = false;
         this._matrixClient = MatrixClientPeg.get();
         this._matrixClient.on("Group.myMembership", this._onGroupMyMembership);
 
         this._changeAvatarComponent = null;
         this._initGroupStore(this.props.groupId, true);
+
+        this._dispatcherRef = dis.register(this._onAction);
     },
 
     componentWillUnmount: function() {
+        this._unmounted = true;
         this._matrixClient.removeListener("Group.myMembership", this._onGroupMyMembership);
-        this._groupStore.removeAllListeners();
+        dis.unregister(this._dispatcherRef);
     },
 
     componentWillReceiveProps: function(newProps) {
@@ -464,8 +454,7 @@ export default React.createClass({
     },
 
     _onGroupMyMembership: function(group) {
-        if (group.groupId !== this.props.groupId) return;
-
+        if (this._unmounted || group.groupId !== this.props.groupId) return;
         if (group.myMembership === 'leave') {
             // Leave settings - the user might have clicked the "Leave" button
             this._closeSettings();
@@ -478,34 +467,11 @@ export default React.createClass({
         if (group && group.inviter && group.inviter.userId) {
             this._fetchInviterProfile(group.inviter.userId);
         }
-        this._groupStore = GroupStoreCache.getGroupStore(groupId);
-        this._groupStore.registerListener(() => {
-            const summary = this._groupStore.getSummary();
-            if (summary.profile) {
-                // Default profile fields should be "" for later sending to the server (which
-                // requires that the fields are strings, not null)
-                ["avatar_url", "long_description", "name", "short_description"].forEach((k) => {
-                    summary.profile[k] = summary.profile[k] || "";
-                });
-            }
-            this.setState({
-                summary,
-                summaryLoading: !this._groupStore.isStateReady(GroupStore.STATE_KEY.Summary),
-                isGroupPublicised: this._groupStore.getGroupPublicity(),
-                isUserPrivileged: this._groupStore.isUserPrivileged(),
-                groupRooms: this._groupStore.getGroupRooms(),
-                groupRoomsLoading: !this._groupStore.isStateReady(GroupStore.STATE_KEY.GroupRooms),
-                isUserMember: this._groupStore.getGroupMembers().some(
-                    (m) => m.userId === this._matrixClient.credentials.userId,
-                ),
-                error: null,
-            });
-            if (this.props.groupIsNew && firstInit) {
-                this._onEditClick();
-            }
-        });
+        GroupStore.registerListener(groupId, this.onGroupStoreUpdated.bind(this, firstInit));
         let willDoOnboarding = false;
-        this._groupStore.on('error', (err) => {
+        // XXX: This should be more fluxy - let's get the error from GroupStore .getError or something
+        GroupStore.on('error', (err, errorGroupId) => {
+            if (this._unmounted || groupId !== errorGroupId) return;
             if (err.errcode === 'M_GUEST_ACCESS_FORBIDDEN' && !willDoOnboarding) {
                 dis.dispatch({
                     action: 'do_after_sync_prepared',
@@ -520,8 +486,37 @@ export default React.createClass({
             this.setState({
                 summary: null,
                 error: err,
+                editing: false,
             });
         });
+    },
+
+    onGroupStoreUpdated(firstInit) {
+        if (this._unmounted) return;
+        const summary = GroupStore.getSummary(this.props.groupId);
+        if (summary.profile) {
+            // Default profile fields should be "" for later sending to the server (which
+            // requires that the fields are strings, not null)
+            ["avatar_url", "long_description", "name", "short_description"].forEach((k) => {
+                summary.profile[k] = summary.profile[k] || "";
+            });
+        }
+        this.setState({
+            summary,
+            summaryLoading: !GroupStore.isStateReady(this.props.groupId, GroupStore.STATE_KEY.Summary),
+            isGroupPublicised: GroupStore.getGroupPublicity(this.props.groupId),
+            isUserPrivileged: GroupStore.isUserPrivileged(this.props.groupId),
+            groupRooms: GroupStore.getGroupRooms(this.props.groupId),
+            groupRoomsLoading: !GroupStore.isStateReady(this.props.groupId, GroupStore.STATE_KEY.GroupRooms),
+            isUserMember: GroupStore.getGroupMembers(this.props.groupId).some(
+                (m) => m.userId === this._matrixClient.credentials.userId,
+            ),
+            error: null,
+        });
+        // XXX: This might not work but this.props.groupIsNew unused anyway
+        if (this.props.groupIsNew && firstInit) {
+            this._onEditClick();
+        }
     },
 
     _fetchInviterProfile(userId) {
@@ -529,6 +524,7 @@ export default React.createClass({
             inviterProfileBusy: true,
         });
         this._matrixClient.getProfileInfo(userId).then((resp) => {
+            if (this._unmounted) return;
             this.setState({
                 inviterProfile: {
                     avatarUrl: resp.avatar_url,
@@ -538,6 +534,7 @@ export default React.createClass({
         }).catch((e) => {
             console.error('Error getting group inviter profile', e);
         }).finally(() => {
+            if (this._unmounted) return;
             this.setState({
                 inviterProfileBusy: false,
             });
@@ -565,16 +562,33 @@ export default React.createClass({
         });
     },
 
+    _onShareClick: function() {
+        const ShareDialog = sdk.getComponent("dialogs.ShareDialog");
+        Modal.createTrackedDialog('share community dialog', '', ShareDialog, {
+            target: this._matrixClient.getGroup(this.props.groupId),
+        });
+    },
+
     _onCancelClick: function() {
         this._closeSettings();
     },
 
+    _onAction(payload) {
+        switch (payload.action) {
+            // NOTE: close_settings is an app-wide dispatch; as it is dispatched from MatrixChat
+            case 'close_settings':
+                this.setState({
+                    editing: false,
+                    profileForm: null,
+                });
+                break;
+            default:
+                break;
+        }
+    },
+
     _closeSettings() {
-        this.setState({
-            editing: false,
-            profileForm: null,
-        });
-        dis.dispatch({action: 'panel_disable'});
+        dis.dispatch({action: 'close_settings'});
     },
 
     _onNameChange: function(value) {
@@ -677,7 +691,7 @@ export default React.createClass({
         // spinner disappearing after we have fetched new group data.
         await Promise.delay(500);
 
-        this._groupStore.acceptGroupInvite().then(() => {
+        GroupStore.acceptGroupInvite(this.props.groupId).then(() => {
             // don't reset membershipBusy here: wait for the membership change to come down the sync
         }).catch((e) => {
             this.setState({membershipBusy: false});
@@ -696,7 +710,7 @@ export default React.createClass({
         // spinner disappearing after we have fetched new group data.
         await Promise.delay(500);
 
-        this._groupStore.leaveGroup().then(() => {
+        GroupStore.leaveGroup(this.props.groupId).then(() => {
             // don't reset membershipBusy here: wait for the membership change to come down the sync
         }).catch((e) => {
             this.setState({membershipBusy: false});
@@ -715,7 +729,7 @@ export default React.createClass({
         // spinner disappearing after we have fetched new group data.
         await Promise.delay(500);
 
-        this._groupStore.joinGroup().then(() => {
+        GroupStore.joinGroup(this.props.groupId).then(() => {
             // don't reset membershipBusy here: wait for the membership change to come down the sync
         }).catch((e) => {
             this.setState({membershipBusy: false});
@@ -743,7 +757,7 @@ export default React.createClass({
                 // spinner disappearing after we have fetched new group data.
                 await Promise.delay(500);
 
-                this._groupStore.leaveGroup().then(() => {
+                GroupStore.leaveGroup(this.props.groupId).then(() => {
                     // don't reset membershipBusy here: wait for the membership change to come down the sync
                 }).catch((e) => {
                     this.setState({membershipBusy: false});
@@ -1045,7 +1059,7 @@ export default React.createClass({
                     <input type="radio"
                         value={GROUP_JOINPOLICY_INVITE}
                         checked={this.state.joinableForm.policyType === GROUP_JOINPOLICY_INVITE}
-                        onClick={this._onJoinableChange}
+                        onChange={this._onJoinableChange}
                     />
                     <div className="mx_GroupView_label_text">
                         { _t('Only people who have been invited') }
@@ -1057,7 +1071,7 @@ export default React.createClass({
                     <input type="radio"
                         value={GROUP_JOINPOLICY_OPEN}
                         checked={this.state.joinableForm.policyType === GROUP_JOINPOLICY_OPEN}
-                        onClick={this._onJoinableChange}
+                        onChange={this._onJoinableChange}
                     />
                     <div className="mx_GroupView_label_text">
                         { _t('Everyone') }
@@ -1120,10 +1134,6 @@ export default React.createClass({
             let avatarNode;
             let nameNode;
             let shortDescNode;
-            const bodyNodes = [
-                this._getMembershipSection(),
-                this._getGroupSection(),
-            ];
             const rightButtons = [];
             if (this.state.editing && this.state.isUserPrivileged) {
                 let avatarImage;
@@ -1200,6 +1210,7 @@ export default React.createClass({
                     shortDescNode = <span onClick={onGroupHeaderItemClick}>{ summary.profile.short_description }</span>;
                 }
             }
+
             if (this.state.editing) {
                 rightButtons.push(
                     <AccessibleButton className="mx_GroupView_textButton mx_RoomHeader_textButton"
@@ -1224,6 +1235,11 @@ export default React.createClass({
                         </AccessibleButton>,
                     );
                 }
+                rightButtons.push(
+                    <AccessibleButton className="mx_GroupHeader_button" onClick={this._onShareClick} title={_t('Share Community')} key="_shareButton">
+                        <TintableSvg src="img/icons-share.svg" width="16" height="16" />
+                    </AccessibleButton>,
+                );
                 if (this.props.collapsedRhs) {
                     rightButtons.push(
                         <AccessibleButton className="mx_GroupHeader_button"
@@ -1262,7 +1278,8 @@ export default React.createClass({
                         </div>
                     </div>
                     <GeminiScrollbarWrapper className="mx_GroupView_body">
-                        { bodyNodes }
+                        { this._getMembershipSection() }
+                        { this._getGroupSection() }
                     </GeminiScrollbarWrapper>
                 </div>
             );

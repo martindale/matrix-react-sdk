@@ -1,7 +1,7 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
 Copyright 2017 Vector Creations Ltd
-Copyright 2017 New Vector Ltd
+Copyright 2017, 2018 New Vector Ltd
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@ const gHVersionLabel = function(repo, token='') {
 const SIMPLE_SETTINGS = [
     { id: "urlPreviewsEnabled" },
     { id: "autoplayGifsAndVideos" },
+    { id: "alwaysShowEncryptionIcons" },
     { id: "hideReadReceipts" },
     { id: "dontSendTypingNotifications" },
     { id: "alwaysShowTimestamps" },
@@ -79,14 +80,15 @@ const SIMPLE_SETTINGS = [
     { id: "TextualBody.disableBigEmoji" },
     { id: "VideoView.flipVideoHorizontally" },
     { id: "TagPanel.disableTagPanel" },
+    { id: "enableWidgetScreenshots" },
 ];
 
 // These settings must be defined in SettingsStore
 const ANALYTICS_SETTINGS = [
     {
-        id: 'analyticsOptOut',
+        id: 'analyticsOptIn',
         fn: function(checked) {
-            Analytics[checked ? 'disable' : 'enable']();
+            checked ? Analytics.enable() : Analytics.disable();
         },
     },
 ];
@@ -282,7 +284,13 @@ module.exports = React.createClass({
         this.setState({ electron_settings: settings });
     },
 
-    _refreshMediaDevices: function() {
+    _refreshMediaDevices: function(stream) {
+        if (stream) {
+            // kill stream so that we don't leave it lingering around with webcam enabled etc
+            // as here we called gUM to ask user for permission to their device names only
+            stream.getTracks().forEach((track) => track.stop());
+        }
+
         Promise.resolve().then(() => {
             return CallMediaHandler.getDevices();
         }).then((mediaDevices) => {
@@ -290,6 +298,7 @@ module.exports = React.createClass({
             if (this._unmounted) return;
             this.setState({
                 mediaDevices,
+                activeAudioOutput: SettingsStore.getValueAt(SettingLevel.DEVICE, 'webrtc_audiooutput'),
                 activeAudioInput: SettingsStore.getValueAt(SettingLevel.DEVICE, 'webrtc_audioinput'),
                 activeVideoInput: SettingsStore.getValueAt(SettingLevel.DEVICE, 'webrtc_videoinput'),
             });
@@ -804,7 +813,7 @@ module.exports = React.createClass({
                             "other users. They do not contain messages.",
                         )
                     }</p>
-                    <button className="mx_UserSettings_button danger"
+                    <button className="mx_UserSettings_button"
                         onClick={this._onBugReportClicked}>{ _t('Submit debug logs') }
                     </button>
                 </div>
@@ -968,6 +977,11 @@ module.exports = React.createClass({
         return devices.map((device) => <span key={device.deviceId}>{ device.label }</span>);
     },
 
+    _setAudioOutput: function(deviceId) {
+        this.setState({activeAudioOutput: deviceId});
+        CallMediaHandler.setAudioOutput(deviceId);
+    },
+
     _setAudioInput: function(deviceId) {
         this.setState({activeAudioInput: deviceId});
         CallMediaHandler.setAudioInput(deviceId);
@@ -1008,6 +1022,7 @@ module.exports = React.createClass({
 
         const Dropdown = sdk.getComponent('elements.Dropdown');
 
+        let speakerDropdown = <p>{ _t('No Audio Outputs detected') }</p>;
         let microphoneDropdown = <p>{ _t('No Microphones detected') }</p>;
         let webcamDropdown = <p>{ _t('No Webcams detected') }</p>;
 
@@ -1015,6 +1030,26 @@ module.exports = React.createClass({
             deviceId: '',
             label: _t('Default Device'),
         };
+
+        const audioOutputs = this.state.mediaDevices.audiooutput.slice(0);
+        if (audioOutputs.length > 0) {
+            let defaultOutput = '';
+            if (!audioOutputs.some((input) => input.deviceId === 'default')) {
+                audioOutputs.unshift(defaultOption);
+            } else {
+                defaultOutput = 'default';
+            }
+
+            speakerDropdown = <div>
+                <h4>{ _t('Audio Output') }</h4>
+                <Dropdown
+                    className="mx_UserSettings_webRtcDevices_dropdown"
+                    value={this.state.activeAudioOutput || defaultOutput}
+                    onOptionChange={this._setAudioOutput}>
+                    { this._mapWebRtcDevicesToSpans(audioOutputs) }
+                </Dropdown>
+            </div>;
+        }
 
         const audioInputs = this.state.mediaDevices.audioinput.slice(0);
         if (audioInputs.length > 0) {
@@ -1057,8 +1092,9 @@ module.exports = React.createClass({
         }
 
         return <div>
-                { microphoneDropdown }
-                { webcamDropdown }
+            { speakerDropdown }
+            { microphoneDropdown }
+            { webcamDropdown }
         </div>;
     },
 
@@ -1070,6 +1106,14 @@ module.exports = React.createClass({
                 { this._renderWebRtcDeviceSettings() }
             </div>
         </div>;
+    },
+
+    onSelfShareClick: function() {
+        const cli = MatrixClientPeg.get();
+        const ShareDialog = sdk.getComponent("dialogs.ShareDialog");
+        Modal.createTrackedDialog('share self dialog', '', ShareDialog, {
+            target: cli.getUser(this._me),
+        });
     },
 
     _showSpoiler: function(event) {
@@ -1293,10 +1337,13 @@ module.exports = React.createClass({
 
                 <div className="mx_UserSettings_section">
                     <div className="mx_UserSettings_advanced">
-                        { _t("Logged in as:") } { this._me }
+                        { _t("Logged in as:") + ' ' }
+                        <a onClick={this.onSelfShareClick} className="mx_UserSettings_link">
+                            { this._me }
+                        </a>
                     </div>
                     <div className="mx_UserSettings_advanced">
-                        { _t('Access Token:') }
+                        { _t('Access Token:') + ' ' }
                         <span className="mx_UserSettings_advanced_spoiler"
                                 onClick={this._showSpoiler}
                                 data-spoiler={MatrixClientPeg.get().getAccessToken()}>

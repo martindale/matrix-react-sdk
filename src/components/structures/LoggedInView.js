@@ -255,6 +255,22 @@ const LoggedInView = React.createClass({
         ), true);
     },
 
+    _onClick: function(ev) {
+        // When the panels are disabled, clicking on them results in a mouse event
+        // which bubbles to certain elements in the tree. When this happens, close
+        // any settings page that is currently open (user/room/group).
+        if (this.props.leftDisabled &&
+            this.props.rightDisabled &&
+            (
+                ev.target.className === 'mx_MatrixChat' ||
+                ev.target.className === 'mx_MatrixChat_middlePanel' ||
+                ev.target.className === 'mx_RoomView'
+            )
+        ) {
+            dis.dispatch({ action: 'close_settings' });
+        }
+    },
+
     render: function() {
         const LeftPanel = sdk.getComponent('structures.LeftPanel');
         const RightPanel = sdk.getComponent('structures.RightPanel');
@@ -266,6 +282,7 @@ const LoggedInView = React.createClass({
         const GroupView = sdk.getComponent('structures.GroupView');
         const MyGroups = sdk.getComponent('structures.MyGroups');
         const MatrixToolbar = sdk.getComponent('globals.MatrixToolbar');
+        const CookieBar = sdk.getComponent('globals.CookieBar');
         const NewVersionBar = sdk.getComponent('globals.NewVersionBar');
         const UpdateCheckBar = sdk.getComponent('globals.UpdateCheckBar');
         const PasswordNagBar = sdk.getComponent('globals.PasswordNagBar');
@@ -294,7 +311,7 @@ const LoggedInView = React.createClass({
 
             case PageTypes.UserSettings:
                 page_element = <UserSettings
-                    onClose={this.props.onUserSettingsClose}
+                    onClose={this.props.onCloseAllSettings}
                     brand={this.props.config.brand}
                     referralBaseUrl={this.props.config.referralBaseUrl}
                     teamToken={this.props.teamToken}
@@ -353,7 +370,12 @@ const LoggedInView = React.createClass({
 
         let topBar;
         const isGuest = this.props.matrixClient.isGuest();
-        if (this.props.hasNewVersion) {
+        if (this.props.showCookieBar &&
+            this.props.config.piwik
+        ) {
+            const policyUrl = this.props.config.piwik.policyUrl || null;
+            topBar = <CookieBar policyUrl={policyUrl} />;
+        } else if (this.props.hasNewVersion) {
             topBar = <NewVersionBar version={this.props.version} newVersion={this.props.newVersion}
                                     releaseNotes={this.props.newVersionReleaseNotes}
             />;
@@ -374,7 +396,7 @@ const LoggedInView = React.createClass({
         }
 
         return (
-            <div className='mx_MatrixChat_wrapper' aria-hidden={this.props.hideToSRUsers}>
+            <div className='mx_MatrixChat_wrapper' aria-hidden={this.props.hideToSRUsers} onClick={this._onClick}>
                 { topBar }
                 <DragDropContext onDragEnd={this._onDragEnd}>
                     <div className={bodyClasses}>

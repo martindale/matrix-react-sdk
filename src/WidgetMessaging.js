@@ -44,6 +44,8 @@ export default class WidgetMessaging {
     }
 
     messageToWidget(action) {
+        action.widgetId = this.widgetId; // Required to be sent for all outbound requests
+
         return this.toWidget.exec(action, this.target).then((data) => {
             // Check for errors and reject if found
             if (data.response === undefined) { // null is valid
@@ -94,6 +96,16 @@ export default class WidgetMessaging {
             });
     }
 
+    sendVisibility(visible) {
+        return this.messageToWidget({
+            api: OUTBOUND_API_NAME,
+            action: "visibility",
+            visible,
+        })
+        .catch((error) => {
+            console.error("Failed to send visibility: ", error);
+        });
+    }
 
     start() {
         this.fromWidget.addEndpoint(this.widgetId, this.widgetUrl);

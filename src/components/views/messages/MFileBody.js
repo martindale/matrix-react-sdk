@@ -327,6 +327,7 @@ module.exports = React.createClass({
                     // will have the correct name when the user tries to download it.
                     // We can't provide a Content-Disposition header like we would for HTTP.
                     download: fileName,
+                    rel: "noopener",
                     target: "_blank",
                     textContent: _t("Download %(text)s", { text: text }),
                 }, "*");
@@ -361,7 +362,7 @@ module.exports = React.createClass({
                 return (
                     <span className="mx_MFileBody">
                         <div className="mx_MFileBody_download">
-                            <a className="mx_ImageBody_downloadLink" href={contentUrl} download={fileName} target="_blank">
+                            <a className="mx_MFileBody_downloadLink" href={contentUrl} download={fileName} target="_blank">
                                 { fileName }
                             </a>
                             <div className="mx_MImageBody_size">

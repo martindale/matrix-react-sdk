@@ -44,6 +44,8 @@ const INITIAL_STATE = {
     forwardingEvent: null,
 
     quotingEvent: null,
+
+    isEditingSettings: false,
 };
 
 /**
@@ -111,10 +113,21 @@ class RoomViewStore extends Store {
                     forwardingEvent: payload.event,
                 });
                 break;
-            case 'quote_event':
+            case 'reply_to_event':
                 this._setState({
-                    quotingEvent: payload.event,
+                    replyingToEvent: payload.event,
                 });
+                break;
+            case 'open_room_settings':
+                this._setState({
+                    isEditingSettings: true,
+                });
+                break;
+            case 'close_settings':
+                this._setState({
+                    isEditingSettings: false,
+                });
+                break;
         }
     }
 
@@ -132,8 +145,10 @@ class RoomViewStore extends Store {
                 shouldPeek: payload.should_peek === undefined ? true : payload.should_peek,
                 // have we sent a join request for this room and are waiting for a response?
                 joining: payload.joining || false,
-                // Reset quotingEvent because we don't want cross-room because bad UX
-                quotingEvent: null,
+                // Reset replyingToEvent because we don't want cross-room because bad UX
+                replyingToEvent: null,
+                // pull the user out of Room Settings
+                isEditingSettings: false,
             };
 
             if (this._state.forwardingEvent) {
@@ -297,7 +312,11 @@ class RoomViewStore extends Store {
 
     // The mxEvent if one is currently being replied to/quoted
     getQuotingEvent() {
-        return this._state.quotingEvent;
+        return this._state.replyingToEvent;
+    }
+
+    isEditingSettings() {
+        return this._state.isEditingSettings;
     }
 
     shouldPeek() {

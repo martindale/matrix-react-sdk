@@ -49,34 +49,42 @@ const customVariables = {
     'App Platform': {
         id: 1,
         expl: _td('The platform you\'re on'),
+        example: 'Electron Platform',
     },
     'App Version': {
         id: 2,
         expl: _td('The version of Riot.im'),
+        example: '15.0.0',
     },
     'User Type': {
         id: 3,
         expl: _td('Whether or not you\'re logged in (we don\'t record your user name)'),
+        example: 'Logged In',
     },
     'Chosen Language': {
         id: 4,
         expl: _td('Your language of choice'),
+        example: 'en',
     },
     'Instance': {
         id: 5,
         expl: _td('Which officially provided instance you are using, if any'),
+        example: 'app',
     },
     'RTE: Uses Richtext Mode': {
         id: 6,
         expl: _td('Whether or not you\'re using the Richtext mode of the Rich Text Editor'),
+        example: 'off',
     },
     'Homeserver URL': {
         id: 7,
         expl: _td('Your homeserver\'s URL'),
+        example: 'https://matrix.org',
     },
     'Identity Server URL': {
         id: 8,
         expl: _td('Your identity server\'s URL'),
+        example: 'https://vector.im',
     },
 };
 
@@ -164,9 +172,6 @@ class Analytics {
     }
 
     trackPageChange(generationTimeMs) {
-        if (typeof generationTimeMs !== 'number') {
-            throw new Error('Analytics.trackPageChange: expected generationTimeMs to be a number');
-        }
         if (this.disabled) return;
         if (this.firstPage) {
             // De-duplicate first page
@@ -174,8 +179,15 @@ class Analytics {
             this.firstPage = false;
             return;
         }
+
+        if (typeof generationTimeMs === 'number') {
+            this._paq.push(['setGenerationTimeMs', generationTimeMs]);
+        } else {
+            console.warn('Analytics.trackPageChange: expected generationTimeMs to be a number');
+            // But continue anyway because we still want to track the change
+        }
+
         this._paq.push(['setCustomUrl', getRedactedUrl()]);
-        this._paq.push(['setGenerationTimeMs', generationTimeMs]);
         this._paq.push(['trackPageView']);
     }
 
@@ -214,8 +226,19 @@ class Analytics {
     }
 
     showDetailsModal() {
-        const Tracker = window.Piwik.getAsyncTracker();
-        const rows = Object.values(customVariables).map((v) => Tracker.getCustomVariable(v.id)).filter(Boolean);
+        let rows = [];
+        if (window.Piwik) {
+            const Tracker = window.Piwik.getAsyncTracker();
+            rows = Object.values(customVariables).map((v) => Tracker.getCustomVariable(v.id)).filter(Boolean);
+        } else {
+            // Piwik may not have been enabled, so show example values
+            rows = Object.keys(customVariables).map(
+                (k) => [
+                    k,
+                    _t('e.g. %(exampleValue)s', { exampleValue: customVariables[k].example }),
+                ],
+            );
+        }
 
         const resolution = `${window.screen.width}x${window.screen.height}`;
         const otherVariables = [
@@ -243,7 +266,7 @@ class Analytics {
                 <table>
                     { rows.map((row) => <tr key={row[0]}>
                         <td>{ _t(customVariables[row[0]].expl) }</td>
-                        <td><code>{ row[1] }</code></td>
+                        { row[1] !== undefined && <td><code>{ row[1] }</code></td> }
                     </tr>) }
                     { otherVariables.map((item, index) =>
                         <tr key={index}>

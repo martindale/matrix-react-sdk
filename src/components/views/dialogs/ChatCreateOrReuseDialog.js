@@ -170,7 +170,7 @@ export default class ChatCreateOrReuseDialog extends React.Component {
                     { profile }
                 </div>
                 <DialogButtons primaryButton={_t('Start Chatting')}
-                    onPrimaryButtonClick={this.props.onNewDMClick} focus="true" />
+                    onPrimaryButtonClick={this.props.onNewDMClick} focus={true} />
             </div>;
         }
 
@@ -187,7 +187,7 @@ export default class ChatCreateOrReuseDialog extends React.Component {
     }
 }
 
-ChatCreateOrReuseDialog.propTyps = {
+ChatCreateOrReuseDialog.propTypes = {
     userId: PropTypes.string.isRequired,
     // Called when clicking outside of the dialog
     onFinished: PropTypes.func.isRequired,

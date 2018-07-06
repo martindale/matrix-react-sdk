@@ -34,6 +34,7 @@
 @import "./views/dialogs/_ConfirmUserActionDialog.scss";
 @import "./views/dialogs/_CreateGroupDialog.scss";
 @import "./views/dialogs/_CreateRoomDialog.scss";
+@import "./views/dialogs/_DeactivateAccountDialog.scss";
 @import "./views/dialogs/_DevtoolsDialog.scss";
 @import "./views/dialogs/_EncryptedEventDialog.scss";
 @import "./views/dialogs/_GroupAddressPicker.scss";
@@ -41,6 +42,7 @@
 @import "./views/dialogs/_SetEmailDialog.scss";
 @import "./views/dialogs/_SetMxIdDialog.scss";
 @import "./views/dialogs/_SetPasswordDialog.scss";
+@import "./views/dialogs/_ShareDialog.scss";
 @import "./views/dialogs/_UnknownDeviceDialog.scss";
 @import "./views/directory/_NetworkDropdown.scss";
 @import "./views/elements/_AccessibleButton.scss";
@@ -53,7 +55,7 @@
 @import "./views/elements/_InlineSpinner.scss";
 @import "./views/elements/_MemberEventListSummary.scss";
 @import "./views/elements/_ProgressBar.scss";
-@import "./views/elements/_Quote.scss";
+@import "./views/elements/_ReplyThread.scss";
 @import "./views/elements/_RichText.scss";
 @import "./views/elements/_RoleButton.scss";
 @import "./views/elements/_Spinner.scss";
@@ -89,7 +91,7 @@
 @import "./views/rooms/_PinnedEventTile.scss";
 @import "./views/rooms/_PinnedEventsPanel.scss";
 @import "./views/rooms/_PresenceLabel.scss";
-@import "./views/rooms/_QuotePreview.scss";
+@import "./views/rooms/_ReplyPreview.scss";
 @import "./views/rooms/_RoomDropTarget.scss";
 @import "./views/rooms/_RoomHeader.scss";
 @import "./views/rooms/_RoomList.scss";

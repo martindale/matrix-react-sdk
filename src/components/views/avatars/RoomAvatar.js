@@ -177,7 +177,8 @@ module.exports = React.createClass({
     render: function() {
         const BaseAvatar = sdk.getComponent("avatars.BaseAvatar");
 
-        const {room, oobData, ...otherProps} = this.props;
+        /*eslint no-unused-vars: ["error", { "ignoreRestSiblings": true }]*/
+        const {room, oobData, viewAvatarOnClick, ...otherProps} = this.props;
 
         const roomName = room ? room.name : oobData.name;
 
