@@ -45,6 +45,7 @@ class RoomListStore extends Store {
         // Initialise state
         this._state = {
             lists: {
+                "m.server_notice": [],
                 "im.vector.fake.invite": [],
                 "m.favourite": [],
                 "im.vector.fake.recent": [],
@@ -158,6 +159,7 @@ class RoomListStore extends Store {
 
     _generateRoomLists(optimisticRequest) {
         const lists = {
+            "m.server_notice": [],
             "im.vector.fake.invite": [],
             "m.favourite": [],
             "im.vector.fake.recent": [],
@@ -193,6 +195,11 @@ class RoomListStore extends Store {
                         tagNames.push(optimisticRequest.newTag);
                     }
                 }
+
+                // ignore any m. tag names we don't know about
+                tagNames = tagNames.filter((t) => {
+                    return !t.startsWith('m.') || lists[t] !== undefined;
+                });
 
                 if (tagNames.length) {
                     for (let i = 0; i < tagNames.length; i++) {

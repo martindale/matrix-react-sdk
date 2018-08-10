@@ -26,11 +26,12 @@ import SettingsStore, {SettingLevel} from './settings/SettingsStore';
 
 
 class Command {
-    constructor({name, args='', description, runFn}) {
+    constructor({name, args='', description, runFn, hideCompletionAfterSpace=false}) {
         this.command = '/' + name;
         this.args = args;
         this.description = description;
         this.runFn = runFn;
+        this.hideCompletionAfterSpace = hideCompletionAfterSpace;
     }
 
     getCommand() {
@@ -78,6 +79,7 @@ export const CommandMap = {
             });
             return success();
         },
+        hideCompletionAfterSpace: true,
     }),
 
     nick: new Command({
@@ -466,6 +468,7 @@ export const CommandMap = {
         name: 'me',
         args: '<message>',
         description: _td('Displays action'),
+        hideCompletionAfterSpace: true,
     }),
 };
 /* eslint-enable babel/no-invalid-this */
@@ -475,6 +478,7 @@ export const CommandMap = {
 const aliases = {
     j: "join",
 };
+
 
 /**
  * Process the given text for /commands and perform them.
@@ -488,7 +492,7 @@ export function processCommandInput(roomId, input) {
     // trim any trailing whitespace, as it can confuse the parser for
     // IRC-style commands
     input = input.replace(/\s+$/, '');
-    if (input[0] !== '/' || input[1] === '/') return null; // not a command
+    if (input[0] !== '/') return null; // not a command
 
     const bits = input.match(/^(\S+?)( +((.|\n)*))?$/);
     let cmd;

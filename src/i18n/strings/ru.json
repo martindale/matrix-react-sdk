@@ -953,7 +953,7 @@
     "Whether or not you're using the Richtext mode of the Rich Text Editor": "Используете ли вы режим Richtext в редакторе Rich Text Editor",
     "This room is not public. You will not be able to rejoin without an invite.": "Эта комната не является публичной. Вы не сможете войти без приглашения.",
     "<showDevicesText>Show devices</showDevicesText>, <sendAnywayText>send anyway</sendAnywayText> or <cancelText>cancel</cancelText>.": "<showDevicesText>Показать устройства</showDevicesText>, <sendAnywayText>отправить в любом случае</sendAnywayText> или <cancelText>отменить</cancelText>.",
-    "Community IDs cannot not be empty.": "ID сообществ не могут быть пустыми.",
+    "Community IDs cannot be empty.": "ID сообществ не могут быть пустыми.",
     "<a>In reply to</a> <pill>": "<a>В ответ на</a> <pill>",
     "%(oldDisplayName)s changed their display name to %(displayName)s.": "%(oldDisplayName)s изменил(а) отображаемое имя на %(displayName)s.",
     "Failed to set direct chat tag": "Не удалось установить тег прямого чата",
@@ -1206,5 +1206,11 @@
     "Share Message": "Обмен сообщениями",
     "You can't send any messages until you review and agree to <consentLink>our terms and conditions</consentLink>.": "Вы не можете отправлять сообщения до тех пор, пока вы не примете <consentLink>наши правила и положения</consentLink>.",
     "Demote": "Понижение",
-    "Demote yourself?": "Понизить самого себя?"
+    "Demote yourself?": "Понизить самого себя?",
+    "This event could not be displayed": "Это событие отобразить невозможно",
+    "deleted": "удален",
+    "underlined": "подчеркнут",
+    "A conference call could not be started because the intgrations server is not available": "Запуск конференции невозможен из-за недоступности сервера интеграции",
+    "Permission Required": "Требуется разрешение",
+    "You do not have permission to start a conference call in this room": "У вас нет разрешения на запуск конференции в этой комнате"
 }

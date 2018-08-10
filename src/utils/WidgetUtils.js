@@ -19,6 +19,32 @@ import MatrixClientPeg from '../MatrixClientPeg';
 import SdkConfig from "../SdkConfig";
 import dis from '../dispatcher';
 import * as url from "url";
+import WidgetEchoStore from '../stores/WidgetEchoStore';
+
+// How long we wait for the state event echo to come back from the server
+// before waitFor[Room/User]Widget rejects its promise
+const WIDGET_WAIT_TIME = 20000;
+import SettingsStore from "../settings/SettingsStore";
+
+/**
+ * Encodes a URI according to a set of template variables. Variables will be
+ * passed through encodeURIComponent.
+ * @param {string} pathTemplate The path with template variables e.g. '/foo/$bar'.
+ * @param {Object} variables The key/value pairs to replace the template
+ * variables with. E.g. { '$bar': 'baz' }.
+ * @return {string} The result of replacing all template variables e.g. '/foo/baz'.
+ */
+function encodeUri(pathTemplate, variables) {
+    for (const key in variables) {
+        if (!variables.hasOwnProperty(key)) {
+            continue;
+        }
+        pathTemplate = pathTemplate.replace(
+            key, encodeURIComponent(variables[key]),
+        );
+    }
+    return pathTemplate;
+}
 
 export default class WidgetUtils {
     /* Returns true if user is able to send state events to modify widgets in this room
@@ -134,7 +160,7 @@ export default class WidgetUtils {
             const timerId = setTimeout(() => {
                 MatrixClientPeg.get().removeListener('accountData', onAccountData);
                 reject(new Error("Timed out waiting for widget ID " + widgetId + " to appear"));
-            }, 10000);
+            }, WIDGET_WAIT_TIME);
             MatrixClientPeg.get().on('accountData', onAccountData);
         });
     }
@@ -187,7 +213,7 @@ export default class WidgetUtils {
             const timerId = setTimeout(() => {
                 MatrixClientPeg.get().removeListener('RoomState.events', onRoomStateEvents);
                 reject(new Error("Timed out waiting for widget ID " + widgetId + " to appear"));
-            }, 10000);
+            }, WIDGET_WAIT_TIME);
             MatrixClientPeg.get().on('RoomState.events', onRoomStateEvents);
         });
     }
@@ -250,11 +276,15 @@ export default class WidgetUtils {
             content = {};
         }
 
+        WidgetEchoStore.setRoomWidgetEcho(roomId, widgetId, content);
+
         const client = MatrixClientPeg.get();
         // TODO - Room widgets need to be moved to 'm.widget' state events
         // https://docs.google.com/document/d/1uPF7XWY_dXTKVKV7jZQ2KmsI19wn9-kFRgQ1tFQP7wQ/edit?usp=sharing
         return client.sendStateEvent(roomId, "im.vector.modular.widgets", content, widgetId).then(() => {
             return WidgetUtils.waitForRoomWidget(widgetId, roomId, addingWidget);
+        }).finally(() => {
+            WidgetEchoStore.removeRoomWidgetEcho(roomId, widgetId);
         });
     }
 
@@ -323,5 +353,48 @@ export default class WidgetUtils {
             }
         });
         return client.setAccountData('m.widgets', userWidgets);
+    }
+
+    static makeAppConfig(appId, app, sender, roomId) {
+        const myUserId = MatrixClientPeg.get().credentials.userId;
+        const user = MatrixClientPeg.get().getUser(myUserId);
+        const params = {
+            '$matrix_user_id': myUserId,
+            '$matrix_room_id': roomId,
+            '$matrix_display_name': user ? user.displayName : myUserId,
+            '$matrix_avatar_url': user ? MatrixClientPeg.get().mxcUrlToHttp(user.avatarUrl) : '',
+
+            // TODO: Namespace themes through some standard
+            '$theme': SettingsStore.getValue("theme"),
+        };
+
+        app.id = appId;
+        app.name = app.name || app.type;
+
+        if (app.data) {
+            Object.keys(app.data).forEach((key) => {
+                params['$' + key] = app.data[key];
+            });
+
+            app.waitForIframeLoad = (app.data.waitForIframeLoad === 'false' ? false : true);
+        }
+
+        app.url = encodeUri(app.url, params);
+        app.creatorUserId = (sender && sender.userId) ? sender.userId : null;
+
+        return app;
+    }
+
+    static getCapWhitelistForAppTypeInRoomId(appType, roomId) {
+        const enableScreenshots = SettingsStore.getValue("enableWidgetScreenshots", roomId);
+
+        const capWhitelist = enableScreenshots ? ["m.capability.screenshot"] : [];
+
+        // Obviously anyone that can add a widget can claim it's a jitsi widget,
+        // so this doesn't really offer much over the set of domains we load
+        // widgets from at all, but it probably makes sense for sanity.
+        if (appType == 'jitsi') capWhitelist.push("m.always_on_screen");
+
+        return capWhitelist;
     }
 }
