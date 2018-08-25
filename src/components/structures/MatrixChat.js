@@ -23,7 +23,7 @@ import PropTypes from 'prop-types';
 import Matrix from "matrix-js-sdk";
 
 import Analytics from "../../Analytics";
-import DecryptionFailureTracker from "../../DecryptionFailureTracker";
+import { DecryptionFailureTracker } from "../../DecryptionFailureTracker";
 import MatrixClientPeg from "../../MatrixClientPeg";
 import PlatformPeg from "../../PlatformPeg";
 import SdkConfig from "../../SdkConfig";
@@ -1262,6 +1262,7 @@ export default React.createClass({
             }, true);
         });
         cli.on('Session.logged_out', function(call) {
+            if (Lifecycle.isLoggingOut()) return;
             const ErrorDialog = sdk.getComponent("dialogs.ErrorDialog");
             Modal.createTrackedDialog('Signed out', '', ErrorDialog, {
                 title: _t('Signed Out'),
@@ -1304,9 +1305,20 @@ export default React.createClass({
             }
         });
 
-        const dft = new DecryptionFailureTracker((failure) => {
-            // TODO: Pass reason for failure as third argument to trackEvent
-            Analytics.trackEvent('E2E', 'Decryption failure');
+        const dft = new DecryptionFailureTracker((total, errorCode) => {
+            Analytics.trackEvent('E2E', 'Decryption failure', errorCode, total);
+        }, (errorCode) => {
+            // Map JS-SDK error codes to tracker codes for aggregation
+            switch (errorCode) {
+                case 'MEGOLM_UNKNOWN_INBOUND_SESSION_ID':
+                    return 'olm_keys_not_sent_error';
+                case 'OLM_UNKNOWN_MESSAGE_INDEX':
+                    return 'olm_index_error';
+                case undefined:
+                    return 'unexpected_error';
+                default:
+                    return 'unspecified_error';
+            }
         });
 
         // Shelved for later date when we have time to think about persisting history of
@@ -1317,7 +1329,7 @@ export default React.createClass({
 
         // When logging out, stop tracking failures and destroy state
         cli.on("Session.logged_out", () => dft.stop());
-        cli.on("Event.decrypted", (e) => dft.eventDecrypted(e));
+        cli.on("Event.decrypted", (e, err) => dft.eventDecrypted(e, err));
 
         const krh = new KeyRequestHandler(cli);
         cli.on("crypto.roomKeyRequest", (req) => {

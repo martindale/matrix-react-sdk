@@ -22,8 +22,8 @@ import {_t} from '../languageHandler';
 import AutocompleteProvider from './AutocompleteProvider';
 import FuzzyMatcher from './FuzzyMatcher';
 import {TextualCompletion} from './Components';
+import type {Completion, SelectionRange} from "./Autocompleter";
 import {CommandMap} from '../SlashCommands';
-import type {SelectionRange} from "./Autocompleter";
 
 const COMMANDS = Object.values(CommandMap);
 
@@ -37,15 +37,18 @@ export default class CommandProvider extends AutocompleteProvider {
         });
     }
 
-    async getCompletions(query: string, selection: SelectionRange, force?: boolean) {
+    async getCompletions(query: string, selection: SelectionRange, force?: boolean): Array<Completion> {
         const {command, range} = this.getCurrentCommand(query, selection);
         if (!command) return [];
 
         let matches = [];
+        // check if the full match differs from the first word (i.e. returns false if the command has args)
         if (command[0] !== command[1]) {
             // The input looks like a command with arguments, perform exact match
             const name = command[1].substr(1); // strip leading `/`
             if (CommandMap[name]) {
+                // some commands, namely `me` and `ddg` don't suit having the usage shown whilst typing their arguments
+                if (CommandMap[name].hideCompletionAfterSpace) return [];
                 matches = [CommandMap[name]];
             }
         } else {

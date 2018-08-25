@@ -1,5 +1,6 @@
 /*
 Copyright 2017 Travis Ralston
+Copyright 2018 New Vector Ltd
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -238,6 +239,13 @@ export const SETTINGS = {
         },
         default: true,
     },
+    "urlPreviewsEnabled_e2ee": {
+        supportedLevels: ['room-device', 'room-account'],
+        displayName: {
+            "room-account": _td("Enable URL previews for this room (only affects you)"),
+        },
+        default: false,
+    },
     "roomColor": {
         supportedLevels: LEVELS_ROOM_SETTINGS_WITH_ROOM,
         displayName: _td("Room Colour"),
@@ -269,5 +277,10 @@ export const SETTINGS = {
     "PinnedEvents.isOpen": {
         supportedLevels: ['room-device'],
         default: false,
+    },
+    "RoomSubList.showEmpty": {
+        supportedLevels: LEVELS_ACCOUNT_SETTINGS,
+        displayName: _td('Show empty room list headings'),
+        default: true,
     },
 };

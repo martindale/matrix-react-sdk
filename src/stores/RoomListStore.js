@@ -45,6 +45,7 @@ class RoomListStore extends Store {
         // Initialise state
         this._state = {
             lists: {
+                "m.server_notice": [],
                 "im.vector.fake.invite": [],
                 "m.favourite": [],
                 "im.vector.fake.recent": [],
@@ -158,6 +159,7 @@ class RoomListStore extends Store {
 
     _generateRoomLists(optimisticRequest) {
         const lists = {
+            "m.server_notice": [],
             "im.vector.fake.invite": [],
             "m.favourite": [],
             "im.vector.fake.recent": [],
@@ -193,6 +195,11 @@ class RoomListStore extends Store {
                         tagNames.push(optimisticRequest.newTag);
                     }
                 }
+
+                // ignore any m. tag names we don't know about
+                tagNames = tagNames.filter((t) => {
+                    return !t.startsWith('m.') || lists[t] !== undefined;
+                });
 
                 if (tagNames.length) {
                     for (let i = 0; i < tagNames.length; i++) {
@@ -277,8 +284,8 @@ class RoomListStore extends Store {
             if (optimisticRequest && roomB === optimisticRequest.room) metaB = optimisticRequest.metaData;
 
             // Make sure the room tag has an order element, if not set it to be the bottom
-            const a = metaA.order;
-            const b = metaB.order;
+            const a = metaA ? metaA.order : undefined;
+            const b = metaB ? metaB.order : undefined;
 
             // Order undefined room tag orders to the bottom
             if (a === undefined && b !== undefined) {

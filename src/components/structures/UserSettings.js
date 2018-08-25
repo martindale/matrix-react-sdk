@@ -81,6 +81,7 @@ const SIMPLE_SETTINGS = [
     { id: "VideoView.flipVideoHorizontally" },
     { id: "TagPanel.disableTagPanel" },
     { id: "enableWidgetScreenshots" },
+    { id: "RoomSubList.showEmpty" },
 ];
 
 // These settings must be defined in SettingsStore
@@ -429,7 +430,6 @@ module.exports = React.createClass({
                 "push notifications on other devices until you log back in to them",
             ) + ".",
         });
-        dis.dispatch({action: 'password_changed'});
     },
 
     _onAddEmailEditFinished: function(value, shouldSubmit) {
