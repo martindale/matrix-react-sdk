@@ -159,7 +159,7 @@ class Analytics {
 
         this._setVisitVariable('Chosen Language', getCurrentLanguage());
 
-        if (window.location.hostname === 'riot.im') {
+        if (window.location.hostname === 'chat.fabric.pub') {
             this._setVisitVariable('Instance', window.location.pathname);
         }
 
@@ -218,11 +218,13 @@ class Analytics {
         if (this.disabled) return;
 
         const config = SdkConfig.get();
+        // TODO: remove Analytics or make exclusively available for local
         if (!config.piwik) return;
 
         const whitelistedHSUrls = config.piwik.whitelistedHSUrls || [];
         const whitelistedISUrls = config.piwik.whitelistedISUrls || [];
 
+        // TODO: redefine User Types
         this._setVisitVariable('User Type', isGuest ? 'Guest' : 'Logged In');
         this._setVisitVariable('Homeserver URL', whitelistRedact(whitelistedHSUrls, homeserverUrl));
         this._setVisitVariable('Identity Server URL', whitelistRedact(whitelistedISUrls, identityServerUrl));

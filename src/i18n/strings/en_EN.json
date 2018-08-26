@@ -1154,7 +1154,7 @@
     "Homeserver is": "Homeserver is",
     "Identity Server is": "Identity Server is",
     "matrix-react-sdk version:": "matrix-react-sdk version:",
-    "grove-web version:": "grove-web version:",
+    "grove-web version:": "grove version:",
     "olm version:": "olm version:",
     "Failed to send email": "Failed to send email",
     "The email address linked to your account must be entered.": "The email address linked to your account must be entered.",

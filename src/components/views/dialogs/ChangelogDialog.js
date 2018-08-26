@@ -19,7 +19,7 @@ import sdk from '../../../index';
 import request from 'browser-request';
 import { _t } from '../../../languageHandler';
 
-const REPOS = ['vector-im/riot-web', 'matrix-org/matrix-react-sdk', 'matrix-org/matrix-js-sdk'];
+const REPOS = ['FabricLabs/chat.fabric.pub', 'FabricLabs/matrix-react-sdk', 'FabricLabs/matrix-js-sdk'];
 
 export default class ChangelogDialog extends React.Component {
     constructor(props) {

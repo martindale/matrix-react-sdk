@@ -181,7 +181,7 @@ const escapeRegExp = function(string) {
 // anyone else really should be using matrix.to.
 matrixLinkify.VECTOR_URL_PATTERN = "^(?:https?:\/\/)?(?:"
     + escapeRegExp(window.location.host + window.location.pathname) + "|"
-    + "(?:www\\.)?(?:riot|vector)\\.im/(?:app|beta|staging|develop)/"
+    + "(?:www\\.)?(?:riot|vector|verse)\\.im/(?:app|beta|staging|develop)/"
     + ")(#.*)";
 
 matrixLinkify.MATRIXTO_URL_PATTERN = "^(?:https?:\/\/)?(?:www\\.)?matrix\\.to/#/(([#@!+]).*)";
