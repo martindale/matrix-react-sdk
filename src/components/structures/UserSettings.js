@@ -625,7 +625,7 @@ module.exports = React.createClass({
             <div>
                 <h3>Referral</h3>
                 <div className="mx_UserSettings_section">
-                    { _t("Refer a friend to Riot:") } <a href={href}>{ href }</a>
+                    { _t("Refer a friend to Grove:") } <a href={href}>{ href }</a>
                 </div>
             </div>
         );
@@ -1004,7 +1004,7 @@ module.exports = React.createClass({
                     const ErrorDialog = sdk.getComponent('dialogs.ErrorDialog');
                     Modal.createTrackedDialog('No media permissions', '', ErrorDialog, {
                         title: _t('No media permissions'),
-                        description: _t('You may need to manually permit Riot to access your microphone/webcam'),
+                        description: _t('You may need to manually permit Grove to access your microphone/webcam'),
                     });
                 },
             ]);
@@ -1361,8 +1361,8 @@ module.exports = React.createClass({
                             ? gHVersionLabel('matrix-org/matrix-react-sdk', REACT_SDK_VERSION)
                             : REACT_SDK_VERSION
                         }<br />
-                        { _t('riot-web version:') } { (this.state.vectorVersion !== undefined)
-                            ? gHVersionLabel('vector-im/riot-web', this.state.vectorVersion)
+                        { _t('grove-web version:') } { (this.state.vectorVersion !== undefined)
+                            ? gHVersionLabel('FabricLabs/chat.fabric.pub', this.state.vectorVersion)
                             : 'unknown'
                         }<br />
                         { _t("olm version:") } { olmVersionString }<br />

@@ -1,7 +1,7 @@
 {
   "name": "matrix-react-sdk",
   "version": "0.13.2-fabric",
-  "description": "SDK for matrix.org using React",
+  "description": "SDK for Matrix using React",
   "author": "matrix.org",
   "repository": {
     "type": "git",

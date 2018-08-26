@@ -142,12 +142,12 @@ export default class BugReportDialog extends React.Component {
                     </p>
                     <p>
                         { _t(
-                            "Riot bugs are tracked on GitHub: <a>create a GitHub issue</a>.",
+                            "Grove bugs are tracked on GitHub: <a>create a GitHub issue</a>.",
                             {},
                             {
                                 a: (sub) => <a
                                     target="_blank"
-                                    href="https://github.com/vector-im/riot-web/issues/new"
+                                    href="https://github.com/FabricLabs/chat.fabric.pub/issues/new"
                                 >
                                     { sub }
                                 </a>,
@@ -167,7 +167,7 @@ export default class BugReportDialog extends React.Component {
                             className="mx_BugReportDialog_field_input"
                             onChange={this._onIssueUrlChange}
                             value={this.state.issueUrl}
-                            placeholder="https://github.com/vector-im/riot-web/issues/1337"
+                            placeholder="https://github.com/FabricLabs/chat.fabric.pub/issues/1337"
                         />
                     </div>
                     <div className="mx_BugReportDialog_field_container">
