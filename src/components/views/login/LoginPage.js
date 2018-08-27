@@ -16,7 +16,7 @@ module.exports = React.createClass({
           <div className="mx_GroveLogin_header">
             <h1>Grove</h1>
             <div className="mx_GroveLogin_subtitle">
-              Our gathering place&hellip;
+              Where the community gathers
             </div>
           </div>
           { this.props.children }
