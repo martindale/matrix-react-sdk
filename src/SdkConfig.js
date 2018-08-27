@@ -16,9 +16,9 @@ limitations under the License.
 
 const DEFAULTS = {
     // URL to a page we show in an iframe to configure integrations
-    integrations_ui_url: "https://scalar.vector.im/",
+    integrations_ui_url: "https://scalar.fabric.pub/",
     // Base URL to the REST interface of the integrations server
-    integrations_rest_url: "https://scalar.vector.im/api",
+    integrations_rest_url: "https://scalar.fabric.pub/api",
     // Where to send bug reports. If not specified, bugs cannot be sent.
     bug_report_endpoint_url: null,
 };

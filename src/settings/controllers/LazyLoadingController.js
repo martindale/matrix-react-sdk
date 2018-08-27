@@ -1,5 +1,5 @@
 /*
-Copyright 2015, 2016 OpenMarket Ltd
+Copyright 2018 New Vector
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,19 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-'use strict';
+import SettingController from "./SettingController";
+import MatrixClientPeg from "../../MatrixClientPeg";
+import PlatformPeg from "../../PlatformPeg";
 
-// import { _t } from '../../../languageHandler';
-import React from 'react';
+export default class LazyLoadingController extends SettingController {
+    async onChange(level, roomId, newValue) {
+        if (!PlatformPeg.get()) return;
 
-module.exports = React.createClass({
-    displayName: 'LoginFooter',
-
-    render: function() {
-        return (
-            <div className="mx_Login_links">
-                <strong>Made with <a href="https://maki.io">💗</a>.</strong>
-            </div>
-        );
-    },
-});
+        MatrixClientPeg.get().stopClient();
+        await MatrixClientPeg.get().store.deleteAllData();
+        PlatformPeg.get().reload();
+    }
+}

@@ -36,7 +36,7 @@ export default class DeactivateAccountDialog extends React.Component {
         this._onEraseFieldChange = this._onEraseFieldChange.bind(this);
 
         const deactivationPreferences =
-            MatrixClientPeg.get().getAccountData('im.riot.account_deactivation_preferences');
+            MatrixClientPeg.get().getAccountData('im.verse.account_deactivation_preferences');
 
         const shouldErase = (
             deactivationPreferences &&
@@ -86,7 +86,7 @@ export default class DeactivateAccountDialog extends React.Component {
         // This is fine because the UI always indicates the preference
         // prior to us calling `deactivateAccount`.
         try {
-            await MatrixClientPeg.get().setAccountData('im.riot.account_deactivation_preferences', {
+            await MatrixClientPeg.get().setAccountData('im.verse.account_deactivation_preferences', {
                 shouldErase: this.state.shouldErase,
             });
         } catch (err) {

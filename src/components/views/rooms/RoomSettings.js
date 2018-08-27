@@ -1,6 +1,7 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
 Copyright 2017 Vector Creations Ltd
+Copyright 2018 New Vector Ltd
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -793,15 +794,15 @@ module.exports = React.createClass({
         }
 
         let leaveButton = null;
-        const myMember = this.props.room.getMember(myUserId);
-        if (myMember) {
-            if (myMember.membership === "join") {
+        const myMemberShip = this.props.room.getMyMembership();
+        if (myMemberShip) {
+            if (myMemberShip === "join") {
                 leaveButton = (
                     <AccessibleButton className="mx_RoomSettings_leaveButton" onClick={this.onLeaveClick}>
                         { _t('Leave room') }
                     </AccessibleButton>
                 );
-            } else if (myMember.membership === "leave") {
+            } else if (myMemberShip === "leave") {
                 leaveButton = (
                     <AccessibleButton className="mx_RoomSettings_leaveButton" onClick={this.onForgetClick}>
                         { _t('Forget room') }
@@ -1039,7 +1040,8 @@ module.exports = React.createClass({
 
                 <h3>{ _t('Advanced') }</h3>
                 <div className="mx_RoomSettings_settings">
-                    { _t('This room\'s internal ID is') } <code>{ this.props.room.roomId }</code>
+                    { _t('Internal room ID: ') } <code>{ this.props.room.roomId }</code><br />
+                    { _t('Room version number: ') } <code>{ this.props.room.getVersion() }</code>
                 </div>
             </div>
         );

@@ -318,7 +318,7 @@ module.exports = React.createClass({
                 const ErrorDialog = sdk.getComponent("dialogs.ErrorDialog");
                 Modal.createTrackedDialog('Unable to join network', '', ErrorDialog, {
                     title: _t('Unable to join network'),
-                    description: _t('Riot does not know how to join a room on this network'),
+                    description: _t('Grove does not know how to join a room on this network'),
                 });
                 return;
             }

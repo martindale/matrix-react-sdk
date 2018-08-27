@@ -1,6 +1,6 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
-Copyright 2017 Vector Creations Ltd
+Copyright 2017, 2018 Vector Creations Ltd
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ module.exports = React.createClass({
         };
         // All rooms that should be kept in the room list when filtering.
         // By default, show all rooms.
-        this._visibleRooms = MatrixClientPeg.get().getRooms();
+        this._visibleRooms = MatrixClientPeg.get().getVisibleRooms();
 
         // Listen to updates to group data. RoomList cares about members and rooms in order
         // to filter the room list when group tags are selected.
@@ -302,7 +302,7 @@ module.exports = React.createClass({
             this._visibleRooms = Array.from(roomSet);
         } else {
             // Show all rooms
-            this._visibleRooms = MatrixClientPeg.get().getRooms();
+            this._visibleRooms = MatrixClientPeg.get().getVisibleRooms();
         }
         this._delayedRefreshRoomList();
     },
@@ -347,8 +347,8 @@ module.exports = React.createClass({
                 if (!taggedRoom) {
                     return;
                 }
-                const me = taggedRoom.getMember(MatrixClientPeg.get().credentials.userId);
-                if (HIDE_CONFERENCE_CHANS && Rooms.isConfCallRoom(taggedRoom, me, this.props.ConferenceHandler)) {
+                const myUserId = MatrixClientPeg.get().getUserId();
+                if (HIDE_CONFERENCE_CHANS && Rooms.isConfCallRoom(taggedRoom, myUserId, this.props.ConferenceHandler)) {
                     return;
                 }
 
@@ -450,6 +450,8 @@ module.exports = React.createClass({
                 });
             }
         }
+
+        if (!this.stickies) return;
 
         const self = this;
         let scrollStuckOffset = 0;

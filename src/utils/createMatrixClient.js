@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// TODO: import Fabric from '@fabric/core';
 import Matrix from 'matrix-js-sdk';
 
 const localStorage = window.localStorage;
@@ -48,12 +49,13 @@ export default function createMatrixClient(opts) {
     }
 
     if (indexedDB && localStorage) {
+        // TODO: use Fabric from import
         // FIXME: bodge to remove old database. Remove this after a few weeks.
         indexedDB.deleteDatabase("matrix-js-sdk:default");
 
         storeOpts.store = new Matrix.IndexedDBStore({
             indexedDB: indexedDB,
-            dbName: "riot-web-sync",
+            dbName: "grove-web-sync",
             localStorage: localStorage,
             workerScript: createMatrixClient.indexedDbWorkerScript,
         });

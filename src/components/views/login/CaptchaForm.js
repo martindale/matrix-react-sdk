@@ -71,7 +71,7 @@ module.exports = React.createClass({
                 ReactDOM.render(_t(
                     "Robot check is currently unavailable on desktop - please use a <a>web browser</a>",
                     {},
-                    { 'a': (sub) => { return <a href='https://riot.im/app'>{ sub }</a>; }}), warning);
+                    { 'a': (sub) => { return <a href='https://chat.fabric.pub'>{ sub }</a>; }}), warning);
                 this.refs.recaptchaContainer.appendChild(warning);
             } else {
                 const scriptTag = document.createElement('script');

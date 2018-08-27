@@ -625,7 +625,7 @@ module.exports = React.createClass({
             <div>
                 <h3>Referral</h3>
                 <div className="mx_UserSettings_section">
-                    { _t("Refer a friend to Riot:") } <a href={href}>{ href }</a>
+                    { _t("Refer a friend to Grove:") } <a href={href}>{ href }</a>
                 </div>
             </div>
         );
@@ -844,8 +844,16 @@ module.exports = React.createClass({
         SettingsStore.getLabsFeatures().forEach((featureId) => {
             // TODO: this ought to be a separate component so that we don't need
             // to rebind the onChange each time we render
-            const onChange = (e) => {
-                SettingsStore.setFeatureEnabled(featureId, e.target.checked);
+            const onChange = async (e) => {
+                const checked = e.target.checked;
+                if (featureId === "feature_lazyloading") {
+                    const confirmed = await this._onLazyLoadChanging(checked);
+                    if (!confirmed) {
+                        e.preventDefault();
+                        return;
+                    }
+                }
+                await SettingsStore.setFeatureEnabled(featureId, checked);
                 this.forceUpdate();
             };
 
@@ -855,7 +863,7 @@ module.exports = React.createClass({
                         type="checkbox"
                         id={featureId}
                         name={featureId}
-                        defaultChecked={SettingsStore.isFeatureEnabled(featureId)}
+                        checked={SettingsStore.isFeatureEnabled(featureId)}
                         onChange={onChange}
                     />
                     <label htmlFor={featureId}>{ SettingsStore.getDisplayName(featureId) }</label>
@@ -878,6 +886,30 @@ module.exports = React.createClass({
         );
     },
 
+    _onLazyLoadChanging: async function(enabling) {
+        // don't prevent turning LL off when not supported
+        if (enabling) {
+            const supported = await MatrixClientPeg.get().doesServerSupportLazyLoading();
+            if (!supported) {
+                await new Promise((resolve) => {
+                    const QuestionDialog = sdk.getComponent("dialogs.QuestionDialog");
+                    Modal.createDialog(QuestionDialog, {
+                        title: _t("Lazy loading members not supported"),
+                        description:
+                            <div>
+                         { _t("Lazy loading is not supported by your " +
+                            "current homeserver.") }
+                            </div>,
+                        button: _t("OK"),
+                        onFinished: resolve,
+                    });
+                });
+                return false;
+            }
+        }
+        return true;
+    },
+
     _renderDeactivateAccount: function() {
         return <div>
             <h3>{ _t("Deactivate Account") }</h3>
@@ -887,6 +919,25 @@ module.exports = React.createClass({
                     </AccessibleButton>
                 </div>
         </div>;
+    },
+
+    _renderTermsAndConditionsLinks: function() {
+        if (SdkConfig.get().terms_and_conditions_links) {
+            const tncLinks = [];
+            for (const tncEntry of SdkConfig.get().terms_and_conditions_links) {
+                tncLinks.push(<div key={tncEntry.url}>
+                    <a href={tncEntry.url} rel="noopener" target="_blank">{tncEntry.text}</a>
+                </div>);
+            }
+            return <div>
+                <h3>{ _t("Legal") }</h3>
+                <div className="mx_UserSettings_section">
+                    {tncLinks}
+                </div>
+            </div>;
+        } else {
+            return null;
+        }
     },
 
     _renderClearCache: function() {
@@ -1004,7 +1055,7 @@ module.exports = React.createClass({
                     const ErrorDialog = sdk.getComponent('dialogs.ErrorDialog');
                     Modal.createTrackedDialog('No media permissions', '', ErrorDialog, {
                         title: _t('No media permissions'),
-                        description: _t('You may need to manually permit Riot to access your microphone/webcam'),
+                        description: _t('You may need to manually permit Grove to access your microphone/webcam'),
                     });
                 },
             ]);
@@ -1361,8 +1412,8 @@ module.exports = React.createClass({
                             ? gHVersionLabel('matrix-org/matrix-react-sdk', REACT_SDK_VERSION)
                             : REACT_SDK_VERSION
                         }<br />
-                        { _t('riot-web version:') } { (this.state.vectorVersion !== undefined)
-                            ? gHVersionLabel('vector-im/riot-web', this.state.vectorVersion)
+                        { _t('grove-web version:') } { (this.state.vectorVersion !== undefined)
+                            ? gHVersionLabel('FabricLabs/chat.fabric.pub', this.state.vectorVersion)
                             : 'unknown'
                         }<br />
                         { _t("olm version:") } { olmVersionString }<br />
@@ -1374,6 +1425,8 @@ module.exports = React.createClass({
                 { this._renderClearCache() }
 
                 { this._renderDeactivateAccount() }
+
+                { this._renderTermsAndConditionsLinks() }
 
                 </GeminiScrollbarWrapper>
             </div>
