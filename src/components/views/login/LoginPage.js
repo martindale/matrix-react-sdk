@@ -1,6 +1,6 @@
 'use strict';
 
-import SettingsStore from '../../../settings/SettingsStore';
+// import SettingsStore from '../../../settings/SettingsStore';
 
 const React = require('react');
 

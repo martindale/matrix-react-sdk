@@ -16,7 +16,7 @@ limitations under the License.
 
 'use strict';
 
-import { _t } from '../../../languageHandler';
+// import { _t } from '../../../languageHandler';
 import React from 'react';
 
 module.exports = React.createClass({
