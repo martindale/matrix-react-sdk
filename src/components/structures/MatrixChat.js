@@ -1628,7 +1628,7 @@ export default React.createClass({
     },
 
     _setPageSubtitle: function(subtitle='') {
-        document.title = `Riot ${subtitle}`;
+        document.title = `${subtitle} · Verse`;
     },
 
     updateStatusIndicator: function(state, prevState) {
