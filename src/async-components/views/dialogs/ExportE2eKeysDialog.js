@@ -79,7 +79,7 @@ export default React.createClass({
             const blob = new Blob([f], {
                 type: 'text/plain;charset=us-ascii',
             });
-            FileSaver.saveAs(blob, 'grove-keys.txt');
+            FileSaver.saveAs(blob, 'verse-keys.txt');
             this.props.onFinished(true);
         }).catch((e) => {
             console.error("Error exporting e2e keys:", e);
