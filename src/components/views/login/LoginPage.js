@@ -9,12 +9,12 @@ module.exports = React.createClass({
   render: function() {
     return (
       <div className="centered grove form">
-        <div className="centered image">
-          <img src="/images/grove-thumbnail.png" alt="Grove" className="rounded bordered padded" />
+        <div className="centered medium image">
+          <img src="/images/grove-thumbnail.png" alt="Grove" className="rounded bordered padded unbottomed" />
         </div>
         <div className="content">
           <div className="grove header">
-            <h1>Grove</h1>
+            <h1 className="untopped">Grove</h1>
             <div className="mx_GroveLogin_subtitle">
               Where the community gathers
             </div>

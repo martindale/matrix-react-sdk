@@ -8,6 +8,11 @@
   text-align: center;
 }
 
+.medium.image img {
+  max-width: 240px;
+  max-height: 240px;
+}
+
 .grove.header, .grove.footer {
   text-align: center;
 }
@@ -30,4 +35,12 @@ img.bordered {
 
 img.padded {
   margin: 1em;
+}
+
+.unbottomed {
+  margin-bottom: 0;
+}
+
+.untopped {
+  margin-top: 0;
 }
