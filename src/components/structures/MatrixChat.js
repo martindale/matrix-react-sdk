@@ -1628,7 +1628,11 @@ export default React.createClass({
     },
 
     _setPageSubtitle: function(subtitle='') {
-        document.title = `${subtitle} · Grove`;
+        if (subtitle) {
+          document.title = `${subtitle} · Grove`;
+        } else {
+          document.title = `Grove`;
+        }
     },
 
     updateStatusIndicator: function(state, prevState) {

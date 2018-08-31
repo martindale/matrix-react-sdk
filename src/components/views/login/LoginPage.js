@@ -8,20 +8,22 @@ module.exports = React.createClass({
   displayName: 'LoginPage',
   render: function() {
     return (
-      <div className="mx_GroveLogin">
-        <div className="mx_GroveLogin_brand">
-          <img src="/images/grove-thumbnail.png" alt="Grove" />
+      <div className="centered grove form">
+        <div className="image">
+          <img src="/images/grove-thumbnail.png" alt="Grove" className="rounded bordered padded" />
         </div>
-        <div className="mx_GroveLogin_content">
-          <div className="mx_GroveLogin_header">
+        <div className="content">
+          <div className="grove header">
             <h1>Grove</h1>
             <div className="mx_GroveLogin_subtitle">
               Where the community gathers
             </div>
           </div>
+          <div class="grove content body">
           { this.props.children }
-          <div className="mx_GroveLogin_footer">
-            <a href="https://github.com/FabricLabs/chat.fabric.pub">git://</a> &middot; <a href="https://twitter.com/FabricProtocol">@FabricProtocol</a>
+          </div>
+          <div className="grove footer">
+            <a href="https://github.com/FabricLabs/chat.fabric.pub"><code>git://</code></a> &middot; <a href="https://twitter.com/@FabricProtocol">@FabricProtocol</a> &middot; <a href="https://medium.com/universes">/universes</a> &middot; <a href="https://fabric.pub">Home</a>
           </div>
         </div>
       </div>
