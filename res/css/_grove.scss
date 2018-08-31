@@ -1,0 +1,29 @@
+.centered.form {
+  width: 300px; /* mirrors .mx_Login_box */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.grove.header, .grove.footer {
+  text-align: center;
+}
+
+.grove.footer {
+  font-size: 0.8em;
+}
+
+.grove img {
+  max-width: 100%;
+}
+
+img.rounded {
+  border-radius: 300px;
+}
+
+img.bordered {
+  border: 5px solid forestgreen;
+}
+
+img.padded {
+  margin: 1em;
+}
