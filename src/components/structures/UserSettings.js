@@ -662,7 +662,7 @@ module.exports = React.createClass({
                 <h3>{ _t("User Interface") }</h3>
                 <div className="mx_UserSettings_section">
                     { SIMPLE_SETTINGS.map( this._renderAccountSetting ) }
-                    { THEMES.map( this._renderThemeOption ) }
+                    {/* THEMES.map( this._renderThemeOption ) */}
                     <table>
                         <tbody>
                         <tr>
@@ -677,7 +677,7 @@ module.exports = React.createClass({
                         </tr>
                         </tbody>
                     </table>
-                    { this._renderLanguageSetting() }
+                    {/* this._renderLanguageSetting() */}
                 </div>
             </div>
         );
