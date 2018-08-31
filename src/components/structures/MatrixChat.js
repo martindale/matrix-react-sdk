@@ -1628,7 +1628,11 @@ export default React.createClass({
     },
 
     _setPageSubtitle: function(subtitle='') {
+      if (subtitle) {
         document.title = `${subtitle} · Verse`;
+      } else {
+        document.title = `Verse`;
+      }
     },
 
     updateStatusIndicator: function(state, prevState) {

@@ -61,7 +61,7 @@ const customVariables = {
     },
     'App Version': {
         id: 2,
-        expl: _td('The version of Grove'),
+        expl: _td('The version of Verse'),
         example: '15.0.0',
     },
     'User Type': {
@@ -271,7 +271,7 @@ class Analytics {
             title: _t('Analytics'),
             description: <div className="mx_UserSettings_analyticsModal">
                 <div>
-                    { _t('The information being sent to us to help make Grove better includes:') }
+                    { _t('The information being sent to us to help make Verse better includes:') }
                 </div>
                 <table>
                     { rows.map((row) => <tr key={row[0]}>
