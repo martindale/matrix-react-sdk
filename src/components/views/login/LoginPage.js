@@ -9,7 +9,7 @@ module.exports = React.createClass({
   render: function() {
     return (
       <div className="centered grove form">
-        <div className="image">
+        <div className="centered image">
           <img src="/images/grove-thumbnail.png" alt="Grove" className="rounded bordered padded" />
         </div>
         <div className="content">

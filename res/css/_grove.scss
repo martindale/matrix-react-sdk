@@ -4,6 +4,10 @@
   margin-right: auto;
 }
 
+.centered.image {
+  text-align: center;
+}
+
 .grove.header, .grove.footer {
   text-align: center;
 }
@@ -21,7 +25,7 @@ img.rounded {
 }
 
 img.bordered {
-  border: 5px solid forestgreen;
+  border: 10px solid $accent-color;
 }
 
 img.padded {
