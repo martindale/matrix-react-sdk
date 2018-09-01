@@ -21,7 +21,7 @@ module.exports = React.createClass({
           { this.props.children }
           </div>
           <div className="verse footer">
-            <a href="https://github.com/RolePlayGateway/chat.verse.im"><code>git://</code></a> &middot; <a href="https://twitter.com/RolePlayGateway">@FabricProtocol</a> &middot; <a href="https://medium.com/universes">/universes</a> &middot; <a href="https://verse.im">Home</a>
+            <a href="https://github.com/RolePlayGateway/chat.verse.im"><code>git://</code></a> &middot; <a href="https://twitter.com/FabricProtocol">@FabricProtocol</a> &middot; <a href="https://www.roleplaygateway.com/">RPG</a> &middot; <a href="https://medium.com/universes">/universes</a> &middot; <a href="https://verse.im">Home</a>
           </div>
         </div>
       </div>
