@@ -463,7 +463,7 @@ module.exports = React.createClass({
 
         return (
             <LoginPage>
-                <div className="mx_Login_box">
+                <div className="grove login box">
                     <LoginHeader />
                     <div>
                         { header }

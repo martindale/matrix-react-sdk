@@ -8,22 +8,20 @@ module.exports = React.createClass({
   displayName: 'LoginPage',
   render: function() {
     return (
-      <div className="centered grove form">
+      <div className="centered verse form">
         <div className="centered medium image">
-          <img src="/images/grove-thumbnail.png" alt="Grove" className="rounded bordered padded unbottomed" />
+          <img src="/images/verse-thumbnail.png" alt="Verse" className="rounded bordered padded unbottomed" />
         </div>
         <div className="content">
-          <div className="grove header">
-            <h1 className="untopped">Grove</h1>
-            <div className="mx_GroveLogin_subtitle">
-              Where the community gathers
-            </div>
+          <div className="verse header">
+            <h1 className="untopped">Verse</h1>
+            <p className="subtitle">the p2p game engine</p>
           </div>
-          <div class="grove content body">
+          <div className="verse content body">
           { this.props.children }
           </div>
-          <div className="grove footer">
-            <a href="https://github.com/FabricLabs/chat.fabric.pub"><code>git://</code></a> &middot; <a href="https://twitter.com/@FabricProtocol">@FabricProtocol</a> &middot; <a href="https://medium.com/universes">/universes</a> &middot; <a href="https://fabric.pub">Home</a>
+          <div className="verse footer">
+            <a href="https://github.com/RolePlayGateway/chat.verse.im"><code>git://</code></a> &middot; <a href="https://twitter.com/RolePlayGateway">@FabricProtocol</a> &middot; <a href="https://medium.com/universes">/universes</a> &middot; <a href="https://verse.im">Home</a>
           </div>
         </div>
       </div>
