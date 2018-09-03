@@ -15,11 +15,9 @@ module.exports = React.createClass({
         <div className="content">
           <div className="grove header">
             <h1 className="untopped">Grove</h1>
-            <div className="mx_GroveLogin_subtitle">
-              Where the community gathers
-            </div>
+            <p className="subtitle">Where the community gathers</p>
           </div>
-          <div class="grove content body">
+          <div className="grove content body">
           { this.props.children }
           </div>
           <div className="grove footer">
