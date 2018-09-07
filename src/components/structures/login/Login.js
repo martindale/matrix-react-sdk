@@ -443,7 +443,7 @@ module.exports = React.createClass({
         // FIXME: remove status.im theme tweaks
         const theme = SettingsStore.getValue("theme");
         if (theme !== "status") {
-            header = <h2>{ _t('Sign in') } { loader }</h2>;
+            header = <h2><small><abbr style={{float: 'right'}} title="Your RPG account is already migrated to Verse &mdash; use an all-lowercase version of your name and the same password.  Join #help:verse.im if you need a hand!">Coming from RPG?</abbr></small>{ _t('Sign in') } { loader }</h2>;
         } else {
             if (!this.state.errorText) {
                 header = <h2>{ _t('Sign in to get started') } { loader }</h2>;
