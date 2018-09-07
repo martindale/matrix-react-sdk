@@ -67,6 +67,22 @@ function success(promise) {
 /* eslint-disable babel/no-invalid-this */
 
 export const CommandMap = {
+    msg: new Command({
+        name: 'msg',
+        args: '<user-id> [<message>]',
+        description: _td('Sends a message to a user'),
+        runFn: function(roomId, args) {
+            if (args) {
+                const matches = args.match(/^(\S+)$/);
+                if (matches) {
+                    // TODO: switch to DM
+                    return success(MatrixClientPeg.get().invite(roomId, matches[1]));
+                }
+            }
+            return reject(this.getUsage());
+        }
+    }),
+
     ddg: new Command({
         name: 'ddg',
         args: '<query>',
