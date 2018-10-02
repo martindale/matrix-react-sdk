@@ -39,7 +39,6 @@ div.error, div.warning {
 }
 
 h2 {
-    color: $primary-fg-color;
     font-weight: 400;
     font-size: 18px;
     margin-top: 16px;
@@ -306,7 +305,7 @@ textarea {
 }
 
 .mx_textButton {
-    @mixin mx_DialogButton_small;    
+    @mixin mx_DialogButton_small;
 }
 
 .mx_textButton:hover {
