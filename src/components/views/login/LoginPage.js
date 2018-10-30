@@ -10,18 +10,18 @@ module.exports = React.createClass({
     return (
       <div className="centered verse form">
         <div className="centered medium image">
-          <img src="/images/verse-thumbnail.png" alt="Verse" className="rounded bordered padded unbottomed" />
+          <img src="/images/roleplaygateway.png" alt="RPG" className="rounded padded unbottomed" />
         </div>
         <div className="content">
           <div className="verse header">
-            <h1 className="untopped">Verse</h1>
-            <p className="subtitle">the p2p game engine</p>
+            <h1 className="untopped">RPG Chat</h1>
+            <p className="subtitle">Welcome home, traveler.</p>
           </div>
           <div className="verse content body">
           { this.props.children }
           </div>
           <div className="verse footer">
-            <a href="https://github.com/RolePlayGateway/chat.verse.im"><code>git://</code></a> &middot; <a href="https://twitter.com/FabricProtocol">@FabricProtocol</a> &middot; <a href="https://www.roleplaygateway.com/">RPG</a> &middot; <a href="https://medium.com/universes">/universes</a> &middot; <a href="https://verse.im">Home</a>
+            <a href="https://github.com/RolePlayGateway/chat.roleplaygateway.com"><code>git://</code></a> &middot; <a href="https://twitter.com/RolePlayGateway">@RPG</a> &middot; <a href="https://medium.com/universes">/universes</a> &middot; <a href="https://www,roleplaygateway.com/">Home</a>
           </div>
         </div>
       </div>

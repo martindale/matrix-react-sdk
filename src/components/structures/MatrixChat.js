@@ -1649,9 +1649,9 @@ export default React.createClass({
 
     _setPageSubtitle: function(subtitle='') {
       if (subtitle) {
-        document.title = `${subtitle} · Verse`;
+        document.title = `${subtitle} · RPG Chat`;
       } else {
-        document.title = `Verse`;
+        document.title = `RPG Chat`;
       }
     },
 
