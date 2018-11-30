@@ -1,0 +1,46 @@
+.centered.form {
+  width: 300px; /* mirrors .mx_Login_box */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.centered.image {
+  text-align: center;
+}
+
+.medium.image img {
+  max-width: 240px;
+  max-height: 240px;
+}
+
+.grove.header, .grove.footer {
+  text-align: center;
+}
+
+.grove.footer {
+  font-size: 0.8em;
+}
+
+.grove img {
+  max-width: 100%;
+}
+
+img.rounded {
+  border-radius: 300px;
+}
+
+img.bordered {
+  border: 10px solid $accent-color;
+}
+
+img.padded {
+  margin: 1em;
+}
+
+.unbottomed {
+  margin-bottom: 0;
+}
+
+.untopped {
+  margin-top: 0;
+}

@@ -1,364 +1,187 @@
-Matrix Javascript SDK
-=====================
-[![Build Status](http://matrix.org/jenkins/buildStatus/icon?job=JavascriptSDK)](http://matrix.org/jenkins/job/JavascriptSDK/)
+matrix-react-sdk
+================
 
-This is the [Matrix](https://matrix.org) Client-Server v1/v2 alpha SDK for
-JavaScript. This SDK can be run in a browser or in Node.js.
+This is a react-based SDK for inserting a Matrix chat/voip client into a web page.
 
-Quickstart
-==========
+This package provides the React components needed to build a Matrix web client
+using React.  It is not useable in isolation, and instead must must be used from
+a 'skin'. A skin provides:
+ * Customised implementations of presentation components.
+ * Custom CSS
+ * The containing application
+ * Zero or more 'modules' containing non-UI functionality
 
-In a browser
-------------
-Download either the full or minified version from
-https://github.com/matrix-org/matrix-js-sdk/releases/latest and add that as a
-``<script>`` to your page. There will be a global variable ``matrixcs``
-attached to ``window`` through which you can access the SDK. See below for how to
-include libolm to enable end-to-end-encryption.
+As of Aug 2018, the only skin that exists is `vector-im/riot-web`; it and
+`matrix-org/matrix-react-sdk` should effectively
+be considered as a single project (for instance, matrix-react-sdk bugs
+are currently filed against vector-im/riot-web rather than this project).
 
-Please check [the working browser example](examples/browser) for more information.
+Translation Status
+==================
+[![Translation status](https://translate.riot.im/widgets/riot-web/-/multi-auto.svg)](https://translate.riot.im/engage/riot-web/?utm_source=widget)
 
-In Node.js
-----------
+Developer Guide
+===============
 
-``npm install matrix-js-sdk``
+Platform Targets:
+ * Chrome, Firefox and Safari.
+ * Edge should also work, but we're not testing it proactively.
+ * WebRTC features (VoIP and Video calling) are only available in Chrome & Firefox.
+ * Mobile Web is not currently a target platform - instead please use the native
+   iOS (https://github.com/matrix-org/matrix-ios-kit) and Android
+   (https://github.com/matrix-org/matrix-android-sdk) SDKs.
 
-```javascript
-  var sdk = require("matrix-js-sdk");
-  var client = sdk.createClient("https://matrix.org");
-  client.publicRooms(function(err, data) {
-    console.log("Public Rooms: %s", JSON.stringify(data));
-  });
-```
+All code lands on the `develop` branch - `master` is only used for stable releases.
+**Please file PRs against `develop`!!**
 
-See below for how to include libolm to enable end-to-end-encryption. Please check
-[the Node.js terminal app](examples/node) for a more complex example.
+Please follow the standard Matrix contributor's guide:
+https://github.com/matrix-org/synapse/tree/master/CONTRIBUTING.rst
 
-To start the client:
+Please follow the Matrix JS/React code style as per:
+https://github.com/matrix-org/matrix-react-sdk/blob/master/code_style.md
 
-```javascript
-await client.startClient({initialSyncLimit: 10});
-```
+Code should be committed as follows:
+ * All new components: https://github.com/matrix-org/matrix-react-sdk/tree/master/src/components
+ * Riot-specific components: https://github.com/vector-im/riot-web/tree/master/src/components
+   * In practice, `matrix-react-sdk` is still evolving so fast that the maintenance
+     burden of customising and overriding these components for Riot can seriously
+     impede development.  So right now, there should be very few (if any) customisations for Riot.
+ * CSS: https://github.com/vector-im/riot-web/tree/master/src/skins/vector/css/matrix-react-sdk
+ * Theme specific CSS & resources: https://github.com/matrix-org/matrix-react-sdk/tree/master/res/themes
 
-You can perform a call to `/sync` to get the current state of the client:
+React components in matrix-react-sdk are come in two different flavours:
+'structures' and 'views'.  Structures are stateful components which handle the
+more complicated business logic of the app, delegating their actual presentation
+rendering to stateless 'view' components.  For instance, the RoomView component
+that orchestrates the act of visualising the contents of a given Matrix chat room
+tracks lots of state for its child components which it passes into them for visual
+rendering via props.
 
-```javascript
-client.once('sync', function(state, prevState, res) {
-    if(state === 'PREPARED') {
-        console.log("prepared");
-    } else {
-        console.log(state);
-        process.exit(1);
-    }
-});
-```
+Good separation between the components is maintained by adopting various best
+practices that anyone working with the SDK needs to be be aware of and uphold:
 
-To send a message:
+  * Components are named with upper camel case (e.g. views/rooms/EventTile.js)
 
-```javascript
-var content = {
-    "body": "message text",
-    "msgtype": "m.text"
-};
-client.sendEvent("roomId", "m.room.message", content, "", (err, res) => {
-    console.log(err);
-});
-```
+  * They are organised in a typically two-level hierarchy - first whether the
+    component is a view or a structure, and then a broad functional grouping
+    (e.g. 'rooms' here)
 
-To listen for message events:
+  * After creating a new component you must run `npm run reskindex` to regenerate
+    the `component-index.js` for the SDK (used in future for skinning)
 
-```javascript
-client.on("Room.timeline", function(event, room, toStartOfTimeline) {
-  if (event.getType() !== "m.room.message") {
-    return; // only use messages
-  }
-  console.log(event.event.content.body);
-});
-```
+  * The view's CSS file MUST have the same name (e.g. view/rooms/MessageTile.css).
+    CSS for matrix-react-sdk currently resides in
+    https://github.com/vector-im/riot-web/tree/master/src/skins/vector/css/matrix-react-sdk.
 
-By default, the `matrix-js-sdk` client uses the `MatrixInMemoryStore` to store events as they are received. For example to iterate through the currently stored timeline for a room:
+  * Per-view CSS is optional - it could choose to inherit all its styling from
+    the context of the rest of the app, although this is unusual for any but
+ * Theme specific CSS & resources: https://github.com/matrix-org/matrix-react-sdk/tree/master/res/themes
+    structural components (lacking presentation logic) and the simplest view
+    components.
 
-```javascript
-Object.keys(client.store.rooms).forEach((roomId) => {
-  client.getRoom(roomId).timeline.forEach(t => {
-      console.log(t.event);
-  });
-});
-```
+  * The view MUST *only* refer to the CSS rules defined in its own CSS file.
+    'Stealing' styling information from other components (including parents)
+    is not cool, as it breaks the independence of the components.
 
-What does this SDK do?
-----------------------
+  * CSS classes are named with an app-specific namespacing prefix to try to avoid
+    CSS collisions.  The base skin shipped by Matrix.org with the matrix-react-sdk
+    uses the naming prefix "mx_".  A company called Yoyodyne Inc might use a
+    prefix like "yy_" for its app-specific classes.
 
-This SDK provides a full object model around the Matrix Client-Server API and emits
-events for incoming data and state changes. Aside from wrapping the HTTP API, it:
- - Handles syncing (via `/initialSync` and `/events`)
- - Handles the generation of "friendly" room and member names.
- - Handles historical `RoomMember` information (e.g. display names).
- - Manages room member state across multiple events (e.g. it handles typing, power
-   levels and membership changes).
- - Exposes high-level objects like `Rooms`, `RoomState`, `RoomMembers` and `Users`
-   which can be listened to for things like name changes, new messages, membership
-   changes, presence changes, and more.
- - Handle "local echo" of messages sent using the SDK. This means that messages
-   that have just been sent will appear in the timeline as 'sending', until it
-   completes. This is beneficial because it prevents there being a gap between
-   hitting the send button and having the "remote echo" arrive.
- - Mark messages which failed to send as not sent.
- - Automatically retry requests to send messages due to network errors.
- - Automatically retry requests to send messages due to rate limiting errors.
- - Handle queueing of messages.
- - Handles pagination.
- - Handle assigning push actions for events.
- - Handles room initial sync on accepting invites.
- - Handles WebRTC calling.
+  * CSS classes use upper camel case when they describe React components - e.g.
+    .mx_MessageTile is the selector for the CSS applied to a MessageTile view.
 
-Later versions of the SDK will:
- - Expose a `RoomSummary` which would be suitable for a recents page.
- - Provide different pluggable storage layers (e.g. local storage, database-backed)
+  * CSS classes for DOM elements within a view which aren't components are named
+    by appending a lower camel case identifier to the view's class name - e.g.
+    .mx_MessageTile_randomDiv is how you'd name the class of an arbitrary div
+    within the MessageTile view.
 
-Usage
-=====
+  * We deliberately use vanilla CSS 3.0 to avoid adding any more magic
+    dependencies into the mix than we already have.  App developers are welcome
+    to use whatever floats their boat however.  In future we'll start using
+    css-next to pull in features like CSS variable support.
 
+  * The CSS for a component can override the rules for child components.
+    For instance, .mx_RoomList .mx_RoomTile {} would be the selector to override
+    styles of RoomTiles when viewed in the context of a RoomList view.
+    Overrides *must* be scoped to the View's CSS class - i.e. don't just define
+    .mx_RoomTile {} in RoomList.css - only RoomTile.css is allowed to define its
+    own CSS.  Instead, say .mx_RoomList .mx_RoomTile {} to scope the override
+    only to the context of RoomList views.  N.B. overrides should be relatively
+    rare as in general CSS inheritence should be enough.
 
-Conventions
------------
+  * Components should render only within the bounding box of their outermost DOM
+    element. Page-absolute positioning and negative CSS margins and similar are
+    generally not cool and stop the component from being reused easily in
+    different places.
 
-### Emitted events
+Originally `matrix-react-sdk` followed the Atomic design pattern as per
+http://patternlab.io to try to encourage a modular architecture.  However, we
+found that the grouping of components into atoms/molecules/organisms
+made them harder to find relative to a functional split, and didn't emphasise
+the distinction between 'structural' and 'view' components, so we backed away
+from it.
 
-The SDK will emit events using an ``EventEmitter``. It also
-emits object models (e.g. ``Rooms``, ``RoomMembers``) when they
-are updated.
-
-```javascript
-  // Listen for low-level MatrixEvents
-  client.on("event", function(event) {
-    console.log(event.getType());
-  });
-
-  // Listen for typing changes
-  client.on("RoomMember.typing", function(event, member) {
-    if (member.typing) {
-      console.log(member.name + " is typing...");
-    }
-    else {
-      console.log(member.name + " stopped typing.");
-    }
-  });
-
-  // start the client to setup the connection to the server
-  client.startClient();
-```
-
-### Promises and Callbacks
-
-Most of the methods in the SDK are asynchronous: they do not directly return a
-result, but instead return a [Promise](http://documentup.com/kriskowal/q/)
-which will be fulfilled in the future.
-
-The typical usage is something like:
-
-```javascript
-  matrixClient.someMethod(arg1, arg2).done(function(result) {
-    ...
-  });
-```
-
-Alternatively, if you have a Node.js-style ``callback(err, result)`` function,
-you can pass the result of the promise into it with something like:
-
-```javascript
-  matrixClient.someMethod(arg1, arg2).nodeify(callback);
-```
-
-The main thing to note is that it is an error to discard the result of a
-promise-returning function, as that will cause exceptions to go unobserved. If
-you have nothing better to do with the result, just call ``.done()`` on it. See
-http://documentup.com/kriskowal/q/#the-end for more information.
-
-Methods which return a promise show this in their documentation.
-
-Many methods in the SDK support *both* Node.js-style callbacks *and* Promises,
-via an optional ``callback`` argument. The callback support is now deprecated:
-new methods do not include a ``callback`` argument, and in the future it may be
-removed from existing methods.
-
-Examples
---------
-This section provides some useful code snippets which demonstrate the
-core functionality of the SDK. These examples assume the SDK is setup like this:
-
-```javascript
-   var sdk = require("matrix-js-sdk");
-   var myUserId = "@example:localhost";
-   var myAccessToken = "QGV4YW1wbGU6bG9jYWxob3N0.qPEvLuYfNBjxikiCjP";
-   var matrixClient = sdk.createClient({
-       baseUrl: "http://localhost:8008",
-       accessToken: myAccessToken,
-       userId: myUserId
-   });
-```
-
-### Automatically join rooms when invited
-
-```javascript
-   matrixClient.on("RoomMember.membership", function(event, member) {
-       if (member.membership === "invite" && member.userId === myUserId) {
-           matrixClient.joinRoom(member.roomId).done(function() {
-               console.log("Auto-joined %s", member.roomId);
-           });
-       }
-   });
-
-   matrixClient.startClient();
-```
-
-### Print out messages for all rooms
-
-```javascript
-   matrixClient.on("Room.timeline", function(event, room, toStartOfTimeline) {
-       if (toStartOfTimeline) {
-           return; // don't print paginated results
-       }
-       if (event.getType() !== "m.room.message") {
-           return; // only print messages
-       }
-       console.log(
-           // the room name will update with m.room.name events automatically
-           "(%s) %s :: %s", room.name, event.getSender(), event.getContent().body
-       );
-   });
-
-   matrixClient.startClient();
-```
-
-Output:
-```
-  (My Room) @megan:localhost :: Hello world
-  (My Room) @megan:localhost :: how are you?
-  (My Room) @example:localhost :: I am good
-  (My Room) @example:localhost :: change the room name
-  (My New Room) @megan:localhost :: done
-```
-
-### Print out membership lists whenever they are changed
-
-```javascript
-   matrixClient.on("RoomState.members", function(event, state, member) {
-       var room = matrixClient.getRoom(state.roomId);
-       if (!room) {
-           return;
-       }
-       var memberList = state.getMembers();
-       console.log(room.name);
-       console.log(Array(room.name.length + 1).join("="));  // underline
-       for (var i = 0; i < memberList.length; i++) {
-           console.log(
-               "(%s) %s",
-               memberList[i].membership,
-               memberList[i].name
-           );
-       }
-   });
-
-   matrixClient.startClient();
-```
-
-Output:
-```
-  My Room
-  =======
-  (join) @example:localhost
-  (leave) @alice:localhost
-  (join) Bob
-  (invite) @charlie:localhost
-```
-
-API Reference
+Github Issues
 =============
 
-A hosted reference can be found at
-http://matrix-org.github.io/matrix-js-sdk/index.html
+All issues should be filed under https://github.com/vector-im/riot-web/issues
+for now.
 
-This SDK uses JSDoc3 style comments. You can manually build and
-host the API reference from the source files like this:
+OUTDATED: To Create Your Own Skin
+=================================
 
-```
-  $ npm run gendoc
-  $ cd .jsdoc
-  $ python -m SimpleHTTPServer 8005
-```
+**This is ALL LIES currently, and needs to be updated**
 
-Then visit ``http://localhost:8005`` to see the API docs.
+Skins are modules are exported from such a package in the `lib` directory.
+`lib/skins` contains one directory per-skin, named after the skin, and the
+`modules` directory contains modules as their javascript files.
 
-End-to-end encryption support
-=============================
+A basic skin is provided in the matrix-react-skin package. This also contains
+a minimal application that instantiates the basic skin making a working matrix
+client.
 
-The SDK supports end-to-end encryption via the Olm and Megolm protocols, using
-[libolm](http://matrix.org/git/olm). It is left up to the application to make
-libolm available, via the ``Olm`` global.
+You can use matrix-react-sdk directly, but to do this you would have to provide
+'views' for each UI component. To get started quickly, use matrix-react-skin.
 
-It is also necessry to call ``matrixClient.initCrypto()`` after creating a new
-``MatrixClient`` (but **before** calling ``matrixClient.startClient()``) to
-initialise the crypto layer.
+To actually change the look of a skin, you can create a base skin (which
+does not use views from any other skin) or you can make a derived skin.
+Note that derived skins are currently experimental: for example, the CSS
+from the skins it is based on will not be automatically included.
 
-If the ``Olm`` global is not available, the SDK will show a warning, as shown
-below; ``initCrypto()`` will also fail.
+To make a skin, create React classes for any custom components you wish to add
+in a skin within `src/skins/<skin name>`. These can be based off the files in
+`views` in the `matrix-react-skin` package, modifying the require() statement
+appropriately.
 
-```
-Unable to load crypto module: crypto will be disabled: Error: global.Olm is not defined
-```
+If you make a derived skin, you only need copy the files you wish to customise.
 
-If the crypto layer is not (successfully) initialised, the SDK will continue to
-work for unencrypted rooms, but it will not support the E2E parts of the Matrix
-specification.
+Once you've made all your view files, you need to make a `skinfo.json`. This
+contains all the metadata for a skin. This is a JSON file with, currently, a
+single key, 'baseSkin'. Set this to the empty string if your skin is a base skin,
+or for a derived skin, set it to the path of your base skin's skinfo.json file, as
+you would use in a require call.
 
-To provide the Olm library in a browser application:
+Now you have the basis of a skin, you need to generate a skindex.json file. The
+`reskindex.js` tool in matrix-react-sdk does this for you. It is suggested that
+you add an npm script to run this, as in matrix-react-skin.
 
- * download the transpiled libolm (from https://matrix.org/packages/npm/olm/).
- * load ``olm.js`` as a ``<script>`` *before* ``browser-matrix.js``.
- 
-To provide the Olm library in a node.js application:
+For more specific detail on any of these steps, look at matrix-react-skin.
 
- * ``npm install https://matrix.org/packages/npm/olm/olm-3.0.0.tgz``
-   (replace the URL with the latest version you want to use from
-    https://matrix.org/packages/npm/olm/)
- * ``global.Olm = require('olm');`` *before* loading ``matrix-js-sdk``.
+Alternative instructions:
 
-If you want to package Olm as dependency for your node.js application, you
-can use ``npm install https://matrix.org/packages/npm/olm/olm-3.0.0.tgz
---save-optional`` (if your application also works without e2e crypto enabled)
-or ``--save`` (if it doesn't) to do so.
-
-
-Contributing
-============
-*This section is for people who want to modify the SDK. If you just
-want to use this SDK, skip this section.*
-
-First, you need to pull in the right build tools:
-```
- $ npm install
-```
-
-Building
---------
-
-To build a browser version from scratch when developing::
-```
- $ npm run build
-```
-
-To constantly do builds when files are modified (using ``watchify``)::
-```
- $ npm run watch
-```
-
-To run tests (Jasmine)::
-```
- $ npm test
-```
-
-To run linting:
-```
- $ npm run lint
-```
+  * Create a new NPM project. Be sure to directly depend on react, (otherwise
+    you can end up with two copies of react).
+  * Create an index.js file that sets up react. Add require statements for
+    React and matrix-react-sdk. Load a skin using the 'loadSkin' method on the
+    SDK and call Render. This can be a skin provided by a separate package or
+    a skin in the same package.
+  * Add a way to build your project: we suggest copying the scripts block
+    from matrix-react-skin (which uses babel and webpack). You could use
+    different tools but remember that at least the skins and modules of
+    your project should end up in plain (ie. non ES6, non JSX) javascript in
+    the lib directory at the end of the build process, as well as any
+    packaging that you might do.
+  * Create an index.html file pulling in your compiled javascript and the
+    CSS bundle from the skin you use. For now, you'll also need to manually
+    import CSS from any skins that your skin inherts from.

@@ -1,17 +1,19 @@
-/.jsdocbuild
-/.jsdoc
+npm-debug.log
 
-node_modules
-.lock-wscript
-build/Release
-coverage
-lib-cov
-out
-reports
-/dist
+/node_modules
 /lib
-/specbuild
 
 # version file and tarball created by 'npm pack'
 /git-revision.txt
-/matrix-js-sdk-*.tgz
+/matrix-react-sdk-*.tgz
+
+# test reports created by karma
+/karma-reports
+
+/.idea
+/src/component-index.js
+
+.DS_Store
+
+# https://github.com/vector-im/riot-web/issues/7083
+package-lock.json

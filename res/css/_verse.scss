@@ -1,0 +1,49 @@
+.centered.form {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.centered.image {
+  text-align: center;
+}
+
+.medium.image img {
+  max-width: 240px;
+  max-height: 240px;
+}
+
+.verse.header, .verse.footer {
+  text-align: center;
+}
+
+.verse.footer {
+  font-size: 0.8em;
+}
+
+.verse img {
+  max-width: 100%;
+}
+
+img.rounded {
+  border-radius: 300px;
+}
+
+img.bordered {
+  border: 10px solid $accent-color;
+}
+
+img.padded {
+  margin: 1em;
+}
+
+.unbottomed {
+  margin-bottom: 0;
+}
+
+.untopped {
+  margin-top: 0;
+}
+
+.verse.login.box {
+  padding: 1em;
+}

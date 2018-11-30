@@ -1,34 +1,32 @@
-#!/bin/bash -l
+#!/bin/bash
 
-set -x
+set -e
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+nvm use 10
 
-nvm use 10 || exit $?
-npm install || exit $?
+set -x
 
-RC=0
+# install the other dependencies
+npm install
 
-function fail {
-    echo $@ >&2
-    RC=1
-}
+scripts/fetchdep.sh matrix-org matrix-js-sdk
+rm -r node_modules/matrix-js-sdk || true
+ln -s ../matrix-js-sdk node_modules/matrix-js-sdk
+(cd matrix-js-sdk && npm install)
 
-# don't use last time's test reports
-rm -rf reports coverage || exit $?
+# run the mocha tests
+npm run test -- --no-colors
 
-npm test || fail "npm test finished with return code $?"
+# run eslint
+npm run lintall -- -f checkstyle -o eslint.xml || true
 
-npm run -s lint -- -f checkstyle > eslint.xml ||
-    fail "eslint finished with return code $?"
+# re-run the linter, excluding any files known to have errors or warnings.
+npm run lintwithexclusions
 
 # delete the old tarball, if it exists
-rm -f matrix-js-sdk-*.tgz
+rm -f matrix-react-sdk-*.tgz
 
-npm pack ||
-    fail "npm pack finished with return code $?"
-
-npm run gendoc || fail "JSDoc failed with code $?"
-
-exit $RC
+# build our tarball
+npm pack
