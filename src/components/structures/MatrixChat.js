@@ -1713,7 +1713,11 @@ export default React.createClass({
     },
 
     _setPageSubtitle: function(subtitle='') {
-        document.title = `Riot ${subtitle}`;
+        if (subtitle) {
+            document.title = `${subtitle} · RPG Chat`;
+        } else {
+            document.title = `RPG Chat`;
+        }
     },
 
     updateStatusIndicator: function(state, prevState) {
