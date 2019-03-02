@@ -19,9 +19,9 @@ import QuestionDialog from './QuestionDialog';
 import { _t } from '../../../languageHandler';
 
 export default (props) => {
-    const existingIssuesUrl = "https://github.com/RolePlayGateway.com/chat.roleplaygateway.com/issues" +
+    const existingIssuesUrl = "https://github.com/RolePlayGateway/chat.roleplaygateway.com/issues" +
         "?q=is%3Aopen+is%3Aissue+sort%3Areactions-%2B1-desc";
-    const newIssueUrl = "https://github.com/RolePlayGateway.com/chat.roleplaygateway.com/issues/new";
+    const newIssueUrl = "https://github.com/RolePlayGateway/chat.roleplaygateway.com/issues/new";
 
     const description1 =
         _t("If you run into any bugs or have feedback you'd like to share, " +

@@ -1251,7 +1251,7 @@
     "Username on %(hs)s": "Username on %(hs)s",
     "Username": "Username",
     "Mobile phone number": "Mobile phone number",
-    "Not sure of your password? <a>Set a new one</a>": "Not sure of your password? <a>Set a new one &raquo;</a>",
+    "Not sure of your password? <a>Set a new one</a>": "Not sure of your password? <a>Set a new one »</a>",
     "Sign in to %(serverName)s": "Sign in to %(serverName)s",
     "Change": "Change",
     "Sign in with": "Sign in with",
