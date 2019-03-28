@@ -41,20 +41,22 @@ module.exports = React.createClass({
     displayName: 'ForgotPassword',
 
     propTypes: {
+        // The default server name to use when the user hasn't specified
+        // one. If set, `defaultHsUrl` and `defaultHsUrl` were derived for this
+        // via `.well-known` discovery. The server name is used instead of the
+        // HS URL when talking about "your account".
+        defaultServerName: PropTypes.string,
+        // An error passed along from higher up explaining that something
+        // went wrong when finding the defaultHsUrl.
+        defaultServerDiscoveryError: PropTypes.string,
+
         defaultHsUrl: PropTypes.string,
         defaultIsUrl: PropTypes.string,
         customHsUrl: PropTypes.string,
         customIsUrl: PropTypes.string,
+
         onLoginClick: PropTypes.func,
         onComplete: PropTypes.func.isRequired,
-
-        // The default server name to use when the user hasn't specified
-        // one. This is used when displaying the defaultHsUrl in the UI.
-        defaultServerName: PropTypes.string,
-
-        // An error passed along from higher up explaining that something
-        // went wrong when finding the defaultHsUrl.
-        defaultServerDiscoveryError: PropTypes.string,
     },
 
     getInitialState: function() {
@@ -228,25 +230,33 @@ module.exports = React.createClass({
     },
 
     renderForgot() {
+        const Field = sdk.getComponent('elements.Field');
+
         let errorText = null;
         const err = this.state.errorText || this.props.defaultServerDiscoveryError;
         if (err) {
             errorText = <div className="mx_Login_error">{ err }</div>;
         }
 
-        let yourMatrixAccountText = _t('Your account');
-        try {
-            const parsedHsUrl = new URL(this.state.enteredHsUrl);
-            yourMatrixAccountText = _t('Your account on %(serverName)s', {
-                serverName: parsedHsUrl.hostname,
+        let yourMatrixAccountText = _t('Your Matrix account');
+        if (this.state.enteredHsUrl === this.props.defaultHsUrl) {
+            yourMatrixAccountText = _t('Your Matrix account on %(serverName)s', {
+                serverName: this.props.defaultServerName,
             });
-        } catch (e) {
-            errorText = <div className="mx_Login_error">{_t(
-                "The homeserver URL %(hsUrl)s doesn't seem to be valid URL. Please " +
-                "enter a valid URL including the protocol prefix.",
-            {
-                hsUrl: this.state.enteredHsUrl,
-            })}</div>;
+        } else {
+            try {
+                const parsedHsUrl = new URL(this.state.enteredHsUrl);
+                yourMatrixAccountText = _t('Your Matrix account on %(serverName)s', {
+                    serverName: parsedHsUrl.hostname,
+                });
+            } catch (e) {
+                errorText = <div className="mx_Login_error">{_t(
+                    "The homeserver URL %(hsUrl)s doesn't seem to be valid URL. Please " +
+                    "enter a valid URL including the protocol prefix.",
+                {
+                    hsUrl: this.state.enteredHsUrl,
+                })}</div>;
+            }
         }
 
         // If custom URLs are allowed, wire up the server details edit link.
@@ -267,23 +277,33 @@ module.exports = React.createClass({
             {errorText}
             <form onSubmit={this.onSubmitForm}>
                 <div className="mx_AuthBody_fieldRow">
-                    <input className="mx_Login_field" type="text"
+                    <Field
+                        id="mx_ForgotPassword_email"
                         name="reset_email" // define a name so browser's password autofill gets less confused
+                        type="text"
+                        label={_t('Email')}
                         value={this.state.email}
                         onChange={this.onInputChanged.bind(this, "email")}
-                        placeholder={_t('Email')} autoFocus />
+                        autoFocus
+                    />
                 </div>
                 <div className="mx_AuthBody_fieldRow">
-                    <input className="mx_Login_field" type="password"
+                    <Field
+                        id="mx_ForgotPassword_password"
                         name="reset_password"
+                        type="password"
+                        label={_t('Password')}
                         value={this.state.password}
                         onChange={this.onInputChanged.bind(this, "password")}
-                        placeholder={_t('Password')} />
-                    <input className="mx_Login_field" type="password"
+                    />
+                    <Field
+                        id="mx_ForgotPassword_passwordConfirm"
                         name="reset_password_confirm"
+                        type="password"
+                        label={_t('Confirm')}
                         value={this.state.password2}
                         onChange={this.onInputChanged.bind(this, "password2")}
-                        placeholder={_t('Confirm')} />
+                    />
                 </div>
                 <span>{_t(
                     'A verification email will be sent to your inbox to confirm ' +

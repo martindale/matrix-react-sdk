@@ -103,6 +103,9 @@ export default class Stickerpicker extends React.Component {
     }
 
     componentWillUnmount() {
+        const client = MatrixClientPeg.get();
+        if (client) client.removeListener('accountData', this._updateWidget);
+
         window.removeEventListener('resize', this._onResize);
         if (this.dispatcherRef) {
             dis.unregister(this.dispatcherRef);
@@ -307,18 +310,22 @@ export default class Stickerpicker extends React.Component {
      */
     _launchManageIntegrations() {
         const IntegrationsManager = sdk.getComponent("views.settings.IntegrationsManager");
-        const src = (this.scalarClient !== null && this.scalarClient.hasCredentials()) ?
+        this.scalarClient.connect().done(() => {
+            const src = (this.scalarClient !== null && this.scalarClient.hasCredentials()) ?
                 this.scalarClient.getScalarInterfaceUrlForRoom(
                     this.props.room,
                     'type_' + widgetType,
                     this.state.widgetId,
                 ) :
                 null;
-        Modal.createTrackedDialog('Integrations Manager', '', IntegrationsManager, {
-            src: src,
-        }, "mx_IntegrationsManager");
-
-        this.setState({showStickers: false});
+            Modal.createTrackedDialog('Integrations Manager', '', IntegrationsManager, {
+                src: src,
+            }, "mx_IntegrationsManager");
+            this.setState({showStickers: false});
+        }, (err) => {
+            this.setState({imError: err});
+            console.error('Error ensuring a valid scalar_token exists', err);
+        });
     }
 
     render() {
@@ -349,7 +356,6 @@ export default class Stickerpicker extends React.Component {
                     key="controls_hide_stickers"
                     className="mx_MessageComposer_button mx_MessageComposer_stickers mx_Stickers_hideStickers"
                     onClick={this._onHideStickersClick}
-                    ref='target'
                     title={_t("Hide Stickers")}
                 >
                 </AccessibleButton>;

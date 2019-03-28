@@ -46,25 +46,28 @@ module.exports = React.createClass({
         defaultUsername: PropTypes.string,
         defaultPassword: PropTypes.string,
         minPasswordLength: PropTypes.number,
-        onError: PropTypes.func,
+        onValidationChange: PropTypes.func,
         onRegisterClick: PropTypes.func.isRequired, // onRegisterClick(Object) => ?Promise
         onEditServerDetailsClick: PropTypes.func,
         flows: PropTypes.arrayOf(PropTypes.object).isRequired,
+        // This is optional and only set if we used a server name to determine
+        // the HS URL via `.well-known` discovery. The server name is used
+        // instead of the HS URL when talking about "your account".
+        hsName: PropTypes.string,
         hsUrl: PropTypes.string,
     },
 
     getDefaultProps: function() {
         return {
             minPasswordLength: 6,
-            onError: function(e) {
-                console.error(e);
-            },
+            onValidationChange: console.error,
         };
     },
 
     getInitialState: function() {
         return {
-            fieldValid: {},
+            // Field error codes by field ID
+            fieldErrors: {},
             // The ISO2 country code selected in the phone number entry
             phoneCountry: this.props.defaultPhoneCountry,
         };
@@ -77,12 +80,12 @@ module.exports = React.createClass({
         // the error that ends up being displayed
         // is the one from the first invalid field.
         // It's not super ideal that this just calls
-        // onError once for each invalid field.
+        // onValidationChange once for each invalid field.
+        this.validateField(FIELD_PHONE_NUMBER, ev.type);
+        this.validateField(FIELD_EMAIL, ev.type);
         this.validateField(FIELD_PASSWORD_CONFIRM, ev.type);
         this.validateField(FIELD_PASSWORD, ev.type);
         this.validateField(FIELD_USERNAME, ev.type);
-        this.validateField(FIELD_PHONE_NUMBER, ev.type);
-        this.validateField(FIELD_EMAIL, ev.type);
 
         const self = this;
         if (this.allFieldsValid()) {
@@ -130,9 +133,9 @@ module.exports = React.createClass({
      * @returns {boolean} true if all fields were valid last time they were validated.
      */
     allFieldsValid: function() {
-        const keys = Object.keys(this.state.fieldValid);
+        const keys = Object.keys(this.state.fieldErrors);
         for (let i = 0; i < keys.length; ++i) {
-            if (this.state.fieldValid[keys[i]] == false) {
+            if (this.state.fieldErrors[keys[i]]) {
                 return false;
             }
         }
@@ -202,21 +205,29 @@ module.exports = React.createClass({
                 }
                 break;
             case FIELD_PASSWORD_CONFIRM:
-                this.markFieldValid(
-                    fieldID, pwd1 == pwd2,
-                    "RegistrationForm.ERR_PASSWORD_MISMATCH",
-                );
+                if (allowEmpty && pwd2 === "") {
+                    this.markFieldValid(fieldID, true);
+                } else {
+                    this.markFieldValid(
+                        fieldID, pwd1 == pwd2,
+                        "RegistrationForm.ERR_PASSWORD_MISMATCH",
+                    );
+                }
                 break;
         }
     },
 
-    markFieldValid: function(fieldID, val, errorCode) {
-        const fieldValid = this.state.fieldValid;
-        fieldValid[fieldID] = val;
-        this.setState({fieldValid: fieldValid});
-        if (!val) {
-            this.props.onError(errorCode);
+    markFieldValid: function(fieldID, valid, errorCode) {
+        const { fieldErrors } = this.state;
+        if (valid) {
+            fieldErrors[fieldID] = null;
+        } else {
+            fieldErrors[fieldID] = errorCode;
         }
+        this.setState({
+            fieldErrors,
+        });
+        this.props.onValidationChange(fieldErrors);
     },
 
     fieldElementById(fieldID) {
@@ -236,7 +247,7 @@ module.exports = React.createClass({
 
     _classForField: function(fieldID, ...baseClasses) {
         let cls = baseClasses.join(' ');
-        if (this.state.fieldValid[fieldID] === false) {
+        if (this.state.fieldErrors[fieldID]) {
             if (cls) cls += ' ';
             cls += 'error';
         }
@@ -295,14 +306,22 @@ module.exports = React.createClass({
     },
 
     render: function() {
-        let yourMatrixAccountText = _t('Create your account');
-        try {
-            const parsedHsUrl = new URL(this.props.hsUrl);
-            yourMatrixAccountText = _t('Create your %(serverName)s account', {
-                serverName: parsedHsUrl.hostname,
+        const Field = sdk.getComponent('elements.Field');
+
+        let yourMatrixAccountText = _t('Create your Matrix account');
+        if (this.props.hsName) {
+            yourMatrixAccountText = _t('Create your Matrix account on %(serverName)s', {
+                serverName: this.props.hsName,
             });
-        } catch (e) {
-            // ignore
+        } else {
+            try {
+                const parsedHsUrl = new URL(this.props.hsUrl);
+                yourMatrixAccountText = _t('Create your Matrix account on %(serverName)s', {
+                    serverName: parsedHsUrl.hostname,
+                });
+            } catch (e) {
+                // ignore
+            }
         }
 
         let editLink = null;
@@ -310,7 +329,7 @@ module.exports = React.createClass({
             editLink = <a className="mx_AuthBody_editServerDetails"
                 href="#" onClick={this.props.onEditServerDetailsClick}
             >
-                {_t('Edit')}
+                {_t('Change')}
             </a>;
         }
 
@@ -321,14 +340,16 @@ module.exports = React.createClass({
                 _t("Email (optional)");
 
             emailSection = (
-                <div>
-                    <input type="text" ref="email"
-                        placeholder={emailPlaceholder}
-                        defaultValue={this.props.defaultEmail}
-                        className={this._classForField(FIELD_EMAIL, 'mx_Login_field')}
-                        onBlur={this.onEmailBlur}
-                        value={this.state.email} />
-                </div>
+                <Field
+                    className={this._classForField(FIELD_EMAIL)}
+                    id="mx_RegistrationForm_email"
+                    ref="email"
+                    type="text"
+                    label={emailPlaceholder}
+                    defaultValue={this.props.defaultEmail}
+                    value={this.state.email}
+                    onBlur={this.onEmailBlur}
+                />
             );
         }
 
@@ -336,39 +357,32 @@ module.exports = React.createClass({
         const CountryDropdown = sdk.getComponent('views.auth.CountryDropdown');
         let phoneSection;
         if (threePidLogin && this._authStepIsUsed('m.login.msisdn')) {
-            const phonePlaceholder = this._authStepIsRequired('m.login.msisdn') ?
+            const phoneLabel = this._authStepIsRequired('m.login.msisdn') ?
                 _t("Phone") :
                 _t("Phone (optional)");
-            phoneSection = (
-                <div className="mx_Login_phoneSection">
-                    <CountryDropdown ref="phone_country"
-                        className="mx_Login_phoneCountry mx_Login_field_prefix"
-                        value={this.state.phoneCountry}
-                        isSmall={true}
-                        showPrefix={true}
-                        onOptionChange={this.onPhoneCountryChange}
-                    />
-                    <input type="text" ref="phoneNumber"
-                        placeholder={phonePlaceholder}
-                        defaultValue={this.props.defaultPhoneNumber}
-                        className={this._classForField(
-                            FIELD_PHONE_NUMBER,
-                            'mx_Login_phoneNumberField',
-                            'mx_Login_field',
-                            'mx_Login_field_has_prefix',
-                        )}
-                        onBlur={this.onPhoneNumberBlur}
-                        value={this.state.phoneNumber}
-                    />
-                </div>
-            );
+            const phoneCountry = <CountryDropdown
+                value={this.state.phoneCountry}
+                isSmall={true}
+                showPrefix={true}
+                onOptionChange={this.onPhoneCountryChange}
+            />;
+
+            phoneSection = <Field
+                className={this._classForField(FIELD_PHONE_NUMBER)}
+                id="mx_RegistrationForm_phoneNumber"
+                ref="phoneNumber"
+                type="text"
+                label={phoneLabel}
+                defaultValue={this.props.defaultPhoneNumber}
+                value={this.state.phoneNumber}
+                prefix={phoneCountry}
+                onBlur={this.onPhoneNumberBlur}
+            />;
         }
 
         const registerButton = (
             <input className="mx_Login_submit" type="submit" value={_t("Register")} />
         );
-
-        const placeholderUsername = _t("Username");
 
         return (
             <div>
@@ -378,22 +392,36 @@ module.exports = React.createClass({
                 </h3>
                 <form onSubmit={this.onSubmit}>
                     <div className="mx_AuthBody_fieldRow">
-                        <input type="text" ref="username"
+                        <Field
+                            className={this._classForField(FIELD_USERNAME)}
+                            id="mx_RegistrationForm_username"
+                            ref="username"
+                            type="text"
                             autoFocus={true}
-                            placeholder={placeholderUsername} defaultValue={this.props.defaultUsername}
-                            className={this._classForField(FIELD_USERNAME, 'mx_Login_field')}
-                            onBlur={this.onUsernameBlur} />
+                            label={_t("Username")}
+                            defaultValue={this.props.defaultUsername}
+                            onBlur={this.onUsernameBlur}
+                        />
                     </div>
                     <div className="mx_AuthBody_fieldRow">
-                        <input type="password" ref="password"
-                            className={this._classForField(FIELD_PASSWORD, 'mx_Login_field')}
+                        <Field
+                            className={this._classForField(FIELD_PASSWORD)}
+                            id="mx_RegistrationForm_password"
+                            ref="password"
+                            type="password"
+                            label={_t("Password")}
+                            defaultValue={this.props.defaultPassword}
                             onBlur={this.onPasswordBlur}
-                            placeholder={_t("Password")} defaultValue={this.props.defaultPassword} />
-                        <input type="password" ref="passwordConfirm"
-                            placeholder={_t("Confirm")}
-                            className={this._classForField(FIELD_PASSWORD_CONFIRM, 'mx_Login_field')}
+                        />
+                        <Field
+                            className={this._classForField(FIELD_PASSWORD_CONFIRM)}
+                            id="mx_RegistrationForm_passwordConfirm"
+                            ref="passwordConfirm"
+                            type="password"
+                            label={_t("Confirm")}
+                            defaultValue={this.props.defaultPassword}
                             onBlur={this.onPasswordConfirmBlur}
-                            defaultValue={this.props.defaultPassword} />
+                        />
                     </div>
                     <div className="mx_AuthBody_fieldRow">
                         { emailSection }

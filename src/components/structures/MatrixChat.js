@@ -245,6 +245,17 @@ export default React.createClass({
         return this.state.defaultIsUrl || "https://vector.im";
     },
 
+    /**
+     * Whether to skip the server details phase of registration and start at the
+     * actual form.
+     * @return {boolean}
+     *     If there was a configured default HS or default server name, skip the
+     *     the server details.
+     */
+    skipServerDetailsForRegistration() {
+        return !!this.state.defaultHsUrl;
+    },
+
     componentWillMount: function() {
         SdkConfig.put(this.props.config);
 
@@ -346,25 +357,7 @@ export default React.createClass({
                 return;
             }
 
-            // the extra Promise.resolve() ensures that synchronous exceptions hit the same codepath as
-            // asynchronous ones.
-            return Promise.resolve().then(() => {
-                return Lifecycle.loadSession({
-                    fragmentQueryParams: this.props.startingFragmentQueryParams,
-                    enableGuest: this.props.enableGuest,
-                    guestHsUrl: this.getCurrentHsUrl(),
-                    guestIsUrl: this.getCurrentIsUrl(),
-                    defaultDeviceDisplayName: this.props.defaultDeviceDisplayName,
-                });
-            }).then((loadedSession) => {
-                if (!loadedSession) {
-                    // fall back to showing the welcome screen
-                    dis.dispatch({action: "view_welcome_page"});
-                }
-            });
-            // Note we don't catch errors from this: we catch everything within
-            // loadSession as there's logic there to ask the user if they want
-            // to try logging out.
+            return this._loadSession();
         });
 
         if (SettingsStore.getValue("showCookieBar")) {
@@ -376,6 +369,28 @@ export default React.createClass({
         if (SettingsStore.getValue("analyticsOptIn")) {
             Analytics.enable();
         }
+    },
+
+    _loadSession: function() {
+        // the extra Promise.resolve() ensures that synchronous exceptions hit the same codepath as
+        // asynchronous ones.
+        return Promise.resolve().then(() => {
+            return Lifecycle.loadSession({
+                fragmentQueryParams: this.props.startingFragmentQueryParams,
+                enableGuest: this.props.enableGuest,
+                guestHsUrl: this.getCurrentHsUrl(),
+                guestIsUrl: this.getCurrentIsUrl(),
+                defaultDeviceDisplayName: this.props.defaultDeviceDisplayName,
+            });
+        }).then((loadedSession) => {
+            if (!loadedSession) {
+                // fall back to showing the welcome screen
+                dis.dispatch({action: "view_welcome_page"});
+            }
+        });
+        // Note we don't catch errors from this: we catch everything within
+        // loadSession as there's logic there to ask the user if they want
+        // to try logging out.
     },
 
     componentWillUnmount: function() {
@@ -573,7 +588,8 @@ export default React.createClass({
                 break;
             case 'view_user_settings': {
                 const UserSettingsDialog = sdk.getComponent("dialogs.UserSettingsDialog");
-                Modal.createTrackedDialog('User settings', '', UserSettingsDialog, {}, 'mx_SettingsDialog');
+                Modal.createTrackedDialog('User settings', '', UserSettingsDialog, {}, 'mx_SettingsDialog',
+                    /*isPriority=*/false, /*isStatic=*/true);
 
                 // View the welcome or home page if we need something to look at
                 this._viewSomethingBehindModal();
@@ -1573,14 +1589,9 @@ export default React.createClass({
                     this._chatCreateOrReuse(userId);
                     return;
                 }
-
-                this._setPage(PageTypes.UserView);
                 this.notifyNewScreen('user/' + userId);
-                const member = new Matrix.RoomMember(null, userId);
-                dis.dispatch({
-                    action: 'view_user',
-                    member: member,
-                });
+                this.setState({currentUserId: userId});
+                this._setPage(PageTypes.UserView);
             });
         } else if (screen.indexOf('group/') == 0) {
             const groupId = screen.substring(6);
@@ -1677,6 +1688,41 @@ export default React.createClass({
         // XXX: This should be in state or ideally store(s) because we risk not
         //      rendering the most up-to-date view of state otherwise.
         this._is_registered = true;
+        if (this.state.register_session_id) {
+            // The user came in through an email validation link. To avoid overwriting
+            // their session, check to make sure the session isn't someone else.
+            const sessionOwner = Lifecycle.getStoredSessionOwner();
+            if (sessionOwner && sessionOwner !== credentials.userId) {
+                console.log(
+                    `Found a session for ${sessionOwner} but ${credentials.userId} is trying to verify their ` +
+                    `email address. Restoring the session for ${sessionOwner} with warning.`,
+                );
+                this._loadSession();
+
+                const QuestionDialog = sdk.getComponent("dialogs.QuestionDialog");
+                // N.B. first param is passed to piwik and so doesn't want i18n
+                Modal.createTrackedDialog('Existing session on register', '',
+                    QuestionDialog, {
+                    title: _t('You are logged in to another account'),
+                    description: _t(
+                        "Thank you for verifying your email! The account you're logged into here " +
+                        "(%(sessionUserId)s) appears to be different from the account you've verified an " +
+                        "email for (%(verifiedUserId)s). If you would like to log in to %(verifiedUserId2)s, " +
+                        "please log out first.", {
+                            sessionUserId: sessionOwner,
+                            verifiedUserId: credentials.userId,
+
+                            // TODO: Fix translations to support reusing variables.
+                            // https://github.com/vector-im/riot-web/issues/9086
+                            verifiedUserId2: credentials.userId,
+                        },
+                    ),
+                    hasCancelButton: false,
+                });
+
+                return;
+            }
+        }
         return Lifecycle.setLoggedIn(credentials);
     },
 
@@ -1891,9 +1937,11 @@ export default React.createClass({
                     sessionId={this.state.register_session_id}
                     idSid={this.state.register_id_sid}
                     email={this.props.startingFragmentQueryParams.email}
+                    defaultServerName={this.getDefaultServerName()}
                     defaultServerDiscoveryError={this.state.defaultServerDiscoveryError}
                     defaultHsUrl={this.getDefaultHsUrl()}
                     defaultIsUrl={this.getDefaultIsUrl()}
+                    skipServerDetails={this.skipServerDetailsForRegistration()}
                     brand={this.props.config.brand}
                     customHsUrl={this.getCurrentHsUrl()}
                     customIsUrl={this.getCurrentIsUrl()}
@@ -1927,6 +1975,7 @@ export default React.createClass({
                 <Login
                     onLoggedIn={Lifecycle.setLoggedIn}
                     onRegisterClick={this.onRegisterClick}
+                    defaultServerName={this.getDefaultServerName()}
                     defaultServerDiscoveryError={this.state.defaultServerDiscoveryError}
                     defaultHsUrl={this.getDefaultHsUrl()}
                     defaultIsUrl={this.getDefaultIsUrl()}
