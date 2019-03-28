@@ -170,10 +170,10 @@ export default class HelpUserSettingsTab extends React.Component {
         }
 
         const reactSdkVersion = REACT_SDK_VERSION !== '<local>'
-            ? ghVersionLabel('matrix-org/matrix-react-sdk', REACT_SDK_VERSION)
+            ? ghVersionLabel('FabricLabs/matrix-react-sdk', REACT_SDK_VERSION)
             : REACT_SDK_VERSION;
         const vectorVersion = this.state.vectorVersion
-            ? ghVersionLabel('vector-im/riot-web', this.state.vectorVersion)
+            ? ghVersionLabel('RolePlayGateway/chat.roleplaygateway.com', this.state.vectorVersion)
             : 'unknown';
 
         let olmVersion = MatrixClientPeg.get().olmVersion;
