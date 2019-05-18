@@ -23,7 +23,6 @@ import { _t } from '../../languageHandler';
 const TagPanelButtons = React.createClass({
     displayName: 'TagPanelButtons',
 
-
     componentWillMount: function() {
         this._dispatcherRef = dis.register(this._onAction);
     },
@@ -44,14 +43,9 @@ const TagPanelButtons = React.createClass({
     },
 
     render() {
-        const GroupsButton = sdk.getComponent('elements.GroupsButton');
-        const ActionButton = sdk.getComponent("elements.ActionButton");
-
+        const HomeButton = sdk.getComponent('elements.HomeButton');
         return (<div className="mx_TagPanelButtons">
-            <GroupsButton />
-            <ActionButton
-                className="mx_TagPanelButtons_report" action="show_redesign_feedback_dialog"
-                label={_t("Report bugs & give feedback")} tooltip={true} />
+            <div class="special panel"><HomeButton /></div>
         </div>);
     },
 });

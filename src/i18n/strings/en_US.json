@@ -458,7 +458,7 @@
     "Encrypt room": "Encrypt room",
     "There are no visible files in this room": "There are no visible files in this room",
     "Room": "Room",
-    "Connectivity to the server has been lost.": "Connectivity to the server has been lost.",
+    "Connectivity to the server has been lost.": "Connectivity to the network has been lost.",
     "Sent messages will be stored until your connection has returned.": "Sent messages will be stored until your connection has returned.",
     "Cancel": "Cancel",
     "Active call": "Active call",

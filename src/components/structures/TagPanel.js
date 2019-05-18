@@ -131,10 +131,15 @@ const TagPanel = React.createClass({
             mx_TagPanel_items_selected: itemsSelected,
         });
 
+        const GroupsButton = sdk.getComponent('elements.GroupsButton');
+        const ActionButton = sdk.getComponent("elements.ActionButton");
+
         return <div className={classes}>
             <div className="mx_TagPanel_clearButton_container">
                 { clearButton }
             </div>
+            <div className="mx_TagPanel_divider" />
+            <GroupsButton />
             <div className="mx_TagPanel_divider" />
             <GeminiScrollbarWrapper
                 className="mx_TagPanel_scroller"
