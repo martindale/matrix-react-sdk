@@ -23,6 +23,7 @@ import sdk from '../../../index';
 import Flair from '../elements/Flair.js';
 import FlairStore from '../../../stores/FlairStore';
 import { _t } from '../../../languageHandler';
+import {getUserNameColorClass} from '../../../utils/FormattingUtils';
 
 export default React.createClass({
     displayName: 'SenderProfile',
@@ -84,8 +85,8 @@ export default React.createClass({
     _getDisplayedGroups(userGroups, relatedGroups) {
         let displayedGroups = userGroups || [];
         if (relatedGroups && relatedGroups.length > 0) {
-            displayedGroups = displayedGroups.filter((groupId) => {
-                return relatedGroups.includes(groupId);
+            displayedGroups = relatedGroups.filter((groupId) => {
+                return displayedGroups.includes(groupId);
             });
         } else {
             displayedGroups = [];
@@ -96,7 +97,8 @@ export default React.createClass({
     render() {
         const EmojiText = sdk.getComponent('elements.EmojiText');
         const {mxEvent} = this.props;
-        let name = mxEvent.sender ? mxEvent.sender.name : mxEvent.getSender();
+        const colorClass = getUserNameColorClass(mxEvent.getSender());
+        const name = mxEvent.sender ? mxEvent.sender.name : mxEvent.getSender();
         const {msgtype} = mxEvent.getContent();
 
         if (msgtype === 'm.emote') {
@@ -109,9 +111,6 @@ export default React.createClass({
                 this.state.userGroups, this.state.relatedGroups,
             );
 
-            // Backwards-compatible replacing of "(IRC)" with AS user flair
-            name = displayedGroups.length > 0 ? name.replace(' (IRC)', '') : name;
-
             flair = <Flair key='flair'
                 userId={mxEvent.getSender()}
                 groups={displayedGroups}
@@ -122,7 +121,7 @@ export default React.createClass({
 
         // Name + flair
         const nameFlair = <span>
-            <span className="mx_SenderProfile_name">
+            <span className={`mx_SenderProfile_name ${colorClass}`}>
                 { nameElem }
             </span>
             { flair }

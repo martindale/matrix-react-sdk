@@ -26,7 +26,6 @@ import Unread from '../../../Unread';
 import classNames from 'classnames';
 
 export default class ChatCreateOrReuseDialog extends React.Component {
-
     constructor(props) {
         super(props);
         this.onFinished = this.onFinished.bind(this);
@@ -128,7 +127,7 @@ export default class ChatCreateOrReuseDialog extends React.Component {
                 onClick={this.props.onNewDMClick}
             >
                 <div className="mx_RoomTile_avatar">
-                    <img src="img/create-big.svg" width="26" height="26" />
+                    <img src={require("../../../../res/img/create-big.svg")} width="26" height="26" />
                 </div>
                 <div className={labelClasses}><i>{ _t("Start new chat") }</i></div>
             </AccessibleButton>;

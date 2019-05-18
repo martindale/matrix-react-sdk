@@ -26,7 +26,6 @@ import { _t } from '../../../languageHandler';
 import Modal from '../../../Modal';
 import Resend from '../../../Resend';
 import SettingsStore from '../../../settings/SettingsStore';
-import {makeEventPermalink} from '../../../matrix-to';
 import { isUrlPermitted } from '../../../HtmlUtils';
 
 module.exports = React.createClass({
@@ -90,9 +89,16 @@ module.exports = React.createClass({
         this.closeMenu();
     },
 
+    e2eInfoClicked: function() {
+        this.props.e2eInfoCallback();
+        this.closeMenu();
+    },
+
     onViewSourceClick: function() {
         const ViewSource = sdk.getComponent('structures.ViewSource');
         Modal.createTrackedDialog('View Event Source', '', ViewSource, {
+            roomId: this.props.mxEvent.getRoomId(),
+            eventId: this.props.mxEvent.getId(),
             content: this.props.mxEvent.event,
         }, 'mx_Dialog_viewsource');
         this.closeMenu();
@@ -101,6 +107,8 @@ module.exports = React.createClass({
     onViewClearSourceClick: function() {
         const ViewSource = sdk.getComponent('structures.ViewSource');
         Modal.createTrackedDialog('View Clear Event Source', '', ViewSource, {
+            roomId: this.props.mxEvent.getRoomId(),
+            eventId: this.props.mxEvent.getId(),
             // FIXME: _clearEvent is private
             content: this.props.mxEvent._clearEvent,
         }, 'mx_Dialog_viewsource');
@@ -188,14 +196,7 @@ module.exports = React.createClass({
         const ShareDialog = sdk.getComponent("dialogs.ShareDialog");
         Modal.createTrackedDialog('share room message dialog', '', ShareDialog, {
             target: this.props.mxEvent,
-        });
-        this.closeMenu();
-    },
-
-    onReplyClick: function() {
-        dis.dispatch({
-            action: 'reply_to_event',
-            event: this.props.mxEvent,
+            permalinkCreator: this.props.permalinkCreator,
         });
         this.closeMenu();
     },
@@ -206,7 +207,8 @@ module.exports = React.createClass({
     },
 
     render: function() {
-        const eventStatus = this.props.mxEvent.status;
+        const mxEvent = this.props.mxEvent;
+        const eventStatus = mxEvent.status;
         let resendButton;
         let redactButton;
         let cancelButton;
@@ -216,7 +218,6 @@ module.exports = React.createClass({
         let unhidePreviewButton;
         let externalURLButton;
         let quoteButton;
-        let replyButton;
         let collapseReplyThread;
 
         // status is SENT before remote-echo, null after
@@ -246,18 +247,12 @@ module.exports = React.createClass({
             );
         }
 
-        if (isSent && this.props.mxEvent.getType() === 'm.room.message') {
-            const content = this.props.mxEvent.getContent();
+        if (isSent && mxEvent.getType() === 'm.room.message') {
+            const content = mxEvent.getContent();
             if (content.msgtype && content.msgtype !== 'm.bad.encrypted' && content.hasOwnProperty('body')) {
                 forwardButton = (
                     <div className="mx_MessageContextMenu_field" onClick={this.onForwardClick}>
                         { _t('Forward Message') }
-                    </div>
-                );
-
-                replyButton = (
-                    <div className="mx_MessageContextMenu_field" onClick={this.onReplyClick}>
-                        { _t('Reply') }
                     </div>
                 );
 
@@ -277,7 +272,7 @@ module.exports = React.createClass({
             </div>
         );
 
-        if (this.props.mxEvent.getType() !== this.props.mxEvent.getWireType()) {
+        if (mxEvent.getType() !== mxEvent.getWireType()) {
             viewClearSourceButton = (
                 <div className="mx_MessageContextMenu_field" onClick={this.onViewClearSourceClick}>
                     { _t('View Decrypted Source') }
@@ -295,11 +290,18 @@ module.exports = React.createClass({
             }
         }
 
+        let permalink;
+        if (this.props.permalinkCreator) {
+            permalink = this.props.permalinkCreator.forEvent(this.props.mxEvent.getId());
+        }
         // XXX: if we use room ID, we should also include a server where the event can be found (other than in the domain of the event ID)
         const permalinkButton = (
             <div className="mx_MessageContextMenu_field">
-                <a href={makeEventPermalink(this.props.mxEvent.getRoomId(), this.props.mxEvent.getId())}
-                  target="_blank" rel="noopener" onClick={this.onPermalinkClick}>{ _t('Share Message') }</a>
+                <a href={permalink}
+                  target="_blank" rel="noopener" onClick={this.onPermalinkClick}>
+                    { mxEvent.isRedacted() || mxEvent.getType() !== 'm.room.message'
+                        ? _t('Share Permalink') : _t('Share Message') }
+                </a>
             </div>
         );
 
@@ -313,12 +315,12 @@ module.exports = React.createClass({
 
         // Bridges can provide a 'external_url' to link back to the source.
         if (
-            typeof(this.props.mxEvent.event.content.external_url) === "string" &&
-            isUrlPermitted(this.props.mxEvent.event.content.external_url)
+            typeof(mxEvent.event.content.external_url) === "string" &&
+            isUrlPermitted(mxEvent.event.content.external_url)
         ) {
             externalURLButton = (
                 <div className="mx_MessageContextMenu_field">
-                    <a href={this.props.mxEvent.event.content.external_url}
+                    <a href={mxEvent.event.content.external_url}
                       rel="noopener" target="_blank" onClick={this.closeMenu}>{ _t('Source URL') }</a>
                 </div>
           );
@@ -332,8 +334,15 @@ module.exports = React.createClass({
             );
         }
 
+        let e2eInfo;
+        if (this.props.e2eInfoCallback) {
+            e2eInfo = <div className="mx_MessageContextMenu_field" onClick={this.e2eInfoClicked}>
+                    { _t('End-to-end encryption information') }
+                </div>;
+        }
+
         return (
-            <div>
+            <div className="mx_MessageContextMenu">
                 { resendButton }
                 { redactButton }
                 { cancelButton }
@@ -344,9 +353,9 @@ module.exports = React.createClass({
                 { unhidePreviewButton }
                 { permalinkButton }
                 { quoteButton }
-                { replyButton }
                 { externalURLButton }
                 { collapseReplyThread }
+                { e2eInfo }
             </div>
         );
     },

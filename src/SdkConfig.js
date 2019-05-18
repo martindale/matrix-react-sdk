@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const DEFAULTS = {
+export const DEFAULTS = {
     // URL to a page we show in an iframe to configure integrations
     integrations_ui_url: "https://scalar.fabric.pub/",
     // Base URL to the REST interface of the integrations server
@@ -24,7 +24,6 @@ const DEFAULTS = {
 };
 
 class SdkConfig {
-
     static get() {
         return global.mxReactSdkConfig || {};
     }
@@ -41,6 +40,12 @@ class SdkConfig {
 
     static unset() {
         global.mxReactSdkConfig = undefined;
+    }
+
+    static add(cfg) {
+        const liveConfig = SdkConfig.get();
+        const newConfig = Object.assign({}, liveConfig, cfg);
+        SdkConfig.put(newConfig);
     }
 }
 

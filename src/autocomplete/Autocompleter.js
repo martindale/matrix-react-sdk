@@ -60,8 +60,8 @@ const PROVIDER_COMPLETION_TIMEOUT = 3000;
 export default class Autocompleter {
     constructor(room: Room) {
         this.room = room;
-        this.providers = PROVIDERS.map((p) => {
-            return new p(room);
+        this.providers = PROVIDERS.map((Prov) => {
+            return new Prov(room);
         });
     }
 
@@ -85,7 +85,7 @@ export default class Autocompleter {
                 provider
                     .getCompletions(query, selection, force)
                     .timeout(PROVIDER_COMPLETION_TIMEOUT)
-                    .reflect()
+                    .reflect(),
             ),
         );
 

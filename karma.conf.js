@@ -8,7 +8,7 @@ var fs = require('fs');
  * to build everything; however it's the easiest way to load our dependencies
  * from node_modules.
  *
- * If you run karma in multi-run mode (with `npm run test-multi`), it will watch
+ * If you run karma in multi-run mode (with `yarn test-multi`), it will watch
  * the tests for changes, and webpack will rebuild using a cache. This is much quicker
  * than a clean rebuild.
  */
@@ -23,6 +23,7 @@ var fs = require('fs');
 //
 var testFile = process.env.KARMA_TEST_FILE || 'test/all-tests.js';
 
+
 process.env.PHANTOMJS_BIN = 'node_modules/.bin/phantomjs';
 
 function fileExists(name) {
@@ -34,7 +35,7 @@ function fileExists(name) {
     }
 }
 
-// try find the gemini-scrollbar css in an npm-version-agnostic way
+// try find the gemini-scrollbar css in an version-agnostic way
 var gsCss = 'node_modules/gemini-scrollbar/gemini-scrollbar.css';
 if (!fileExists(gsCss)) {
     gsCss = 'node_modules/react-gemini-scrollbar/'+gsCss;
@@ -134,9 +135,10 @@ module.exports = function (config) {
         ],
 
         customLaunchers: {
-            'ChromeHeadless': {
+            'VectorChromeHeadless': {
                 base: 'Chrome',
                 flags: [
+                    '--no-sandbox',
                     // See https://chromium.googlesource.com/chromium/src/+/lkgr/headless/README.md
                     '--headless',
                     '--disable-gpu',
@@ -160,13 +162,16 @@ module.exports = function (config) {
 
         webpack: {
             module: {
-                loaders: [
-                    { test: /\.json$/, loader: "json" },
+                rules: [
                     {
-                        test: /\.js$/, loader: "babel",
+                        test: /\.js$/, loader: "babel-loader",
                         include: [path.resolve('./src'),
                                   path.resolve('./test'),
                                  ]
+                    },
+                    {
+                        test: /\.(gif|png|svg|ttf)$/,
+                        loader: 'file-loader',
                     },
                 ],
                 noParse: [
@@ -194,14 +199,15 @@ module.exports = function (config) {
                 alias: {
                     // alias any requires to the react module to the one in our
                     // path, otherwise we tend to get the react source included
-                    // twice when using npm link.
+                    // twice when using `npm link` / `yarn link`.
                     react: path.resolve('./node_modules/react'),
 
                     'matrix-react-sdk': path.resolve('test/skinned-sdk.js'),
                     'sinon': 'sinon/pkg/sinon.js',
                 },
-                root: [
+                modules: [
                     path.resolve('./test'),
+                    "node_modules"
                 ],
             },
             devtool: 'inline-source-map',
@@ -210,6 +216,8 @@ module.exports = function (config) {
                 // (the 'commonjs' here means it will output a 'require')
                 "electron": "commonjs electron",
             },
+            // make sure we're flagged as development to avoid wasting time optimising
+            mode: 'development',
         },
 
         webpackMiddleware: {

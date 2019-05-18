@@ -18,12 +18,20 @@ limitations under the License.
 
 'use strict';
 
+import Matrix from 'matrix-js-sdk';
+
 import utils from 'matrix-js-sdk/lib/utils';
 import EventTimeline from 'matrix-js-sdk/lib/models/event-timeline';
 import EventTimelineSet from 'matrix-js-sdk/lib/models/event-timeline-set';
+import sdk from './index';
 import createMatrixClient from './utils/createMatrixClient';
 import SettingsStore from './settings/SettingsStore';
 import MatrixActionCreators from './actions/MatrixActionCreators';
+import {phasedRollOutExpiredForUser} from "./PhasedRollOut";
+import Modal from './Modal';
+import {verificationMethods} from 'matrix-js-sdk/lib/crypto';
+import MatrixClientBackedSettingsHandler from "./settings/handlers/MatrixClientBackedSettingsHandler";
+import * as StorageManager from './utils/StorageManager';
 
 interface MatrixClientCreds {
     homeserverUrl: string,
@@ -51,6 +59,9 @@ class MatrixClientPeg {
         this.opts = {
             initialSyncLimit: 20,
         };
+        // the credentials used to init the current client object.
+        // used if we tear it down & recreate it with a different store
+        this._currentClientCreds = null;
     }
 
     /**
@@ -76,47 +87,64 @@ class MatrixClientPeg {
 
     /**
      * Replace this MatrixClientPeg's client with a client instance that has
-     * Home Server / Identity Server URLs and active credentials
+     * homeserver / identity server URLs and active credentials
      */
     replaceUsingCreds(creds: MatrixClientCreds) {
+        this._currentClientCreds = creds;
         this._createClient(creds);
     }
 
     async start() {
+        for (const dbType of ['indexeddb', 'memory']) {
+            try {
+                const promise = this.matrixClient.store.startup();
+                console.log("MatrixClientPeg: waiting for MatrixClient store to initialise");
+                await promise;
+                break;
+            } catch (err) {
+                if (dbType === 'indexeddb') {
+                    console.error('Error starting matrixclient store - falling back to memory store', err);
+                    this.matrixClient.store = new Matrix.MemoryStore({
+                      localStorage: global.localStorage,
+                    });
+                } else {
+                    console.error('Failed to start memory store!', err);
+                    throw err;
+                }
+            }
+        }
+
+        StorageManager.trackStores(this.matrixClient);
+
         // try to initialise e2e on the new client
         try {
             // check that we have a version of the js-sdk which includes initCrypto
             if (this.matrixClient.initCrypto) {
                 await this.matrixClient.initCrypto();
+                StorageManager.setCryptoInitialised(true);
             }
         } catch (e) {
+            if (e && e.name === 'InvalidCryptoStoreError') {
+                // The js-sdk found a crypto DB too new for it to use
+                const CryptoStoreTooNewDialog =
+                    sdk.getComponent("views.dialogs.CryptoStoreTooNewDialog");
+                Modal.createDialog(CryptoStoreTooNewDialog, {
+                    host: window.location.host,
+                });
+            }
             // this can happen for a number of reasons, the most likely being
             // that the olm library was missing. It's not fatal.
-            console.warn("Unable to initialise e2e: " + e);
+            console.warn("Unable to initialise e2e", e);
         }
 
         const opts = utils.deepCopy(this.opts);
         // the react sdk doesn't work without this, so don't allow
         opts.pendingEventOrdering = "detached";
+        opts.lazyLoadMembers = true;
 
-        if (SettingsStore.isFeatureEnabled('feature_lazyloading')) {
-            opts.lazyLoadMembers = true;
-        }
-
-        try {
-            const promise = this.matrixClient.store.startup();
-            console.log(`MatrixClientPeg: waiting for MatrixClient store to initialise`);
-            await promise;
-        } catch (err) {
-            // log any errors when starting up the database (if one exists)
-            console.error(`Error starting matrixclient store: ${err}`);
-        }
-
-        // regardless of errors, start the client. If we did error out, we'll
-        // just end up doing a full initial /sync.
-
-        // Connect the matrix client to the dispatcher
+        // Connect the matrix client to the dispatcher and setting handlers
         MatrixActionCreators.start(this.matrixClient);
+        MatrixClientBackedSettingsHandler.matrixClient = this.matrixClient;
 
         console.log(`MatrixClientPeg: really starting MatrixClient`);
         await this.get().startClient(opts);
@@ -135,14 +163,14 @@ class MatrixClientPeg {
     }
 
     /**
-     * Return the server name of the user's home server
-     * Throws an error if unable to deduce the home server name
+     * Return the server name of the user's homeserver
+     * Throws an error if unable to deduce the homeserver name
      * (eg. if the user is not logged in)
      */
     getHomeServerName() {
         const matches = /^@.+:(.+)$/.exec(this.matrixClient.credentials.userId);
         if (matches === null || matches.length < 1) {
-            throw new Error("Failed to derive home server name from user ID!");
+            throw new Error("Failed to derive homeserver name from user ID!");
         }
         return matches[1];
     }
@@ -155,10 +183,11 @@ class MatrixClientPeg {
             userId: creds.userId,
             deviceId: creds.deviceId,
             timelineSupport: true,
-            forceTURN: SettingsStore.getValue('webRtcForceTURN', false),
+            forceTURN: !SettingsStore.getValue('webRtcAllowPeerToPeer', false),
+            verificationMethods: [verificationMethods.SAS]
         };
 
-        this.matrixClient = createMatrixClient(opts, this.indexedDbWorkerScript);
+        this.matrixClient = createMatrixClient(opts);
 
         // we're going to add eventlisteners for each matrix event tile, so the
         // potential number of event listeners is quite high.

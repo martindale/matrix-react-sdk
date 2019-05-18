@@ -61,7 +61,7 @@ export default class DevicesPanel extends React.Component {
                 let errtxt;
                 if (error.httpStatus == 404) {
                     // 404 probably means the HS doesn't yet support the API.
-                    errtxt = _t("Your home server does not support device management.");
+                    errtxt = _t("Your homeserver does not support device management.");
                 } else {
                     console.error("Error loading devices:", error);
                     errtxt = _t("Unable to load device list");
@@ -164,6 +164,7 @@ export default class DevicesPanel extends React.Component {
 
     render() {
         const Spinner = sdk.getComponent("elements.Spinner");
+        const AccessibleButton = sdk.getComponent("elements.AccessibleButton");
 
         if (this.state.deviceLoadError !== undefined) {
             const classes = classNames(this.props.className, "error");
@@ -185,9 +186,9 @@ export default class DevicesPanel extends React.Component {
 
         const deleteButton = this.state.deleting ?
             <Spinner w={22} h={22} /> :
-            <div className="mx_textButton" onClick={this._onDeleteClick}>
+            <AccessibleButton className="mx_textButton" onClick={this._onDeleteClick}>
                { _t("Delete %(count)s devices", {count: this.state.selectedDevices.length}) }
-            </div>;
+            </AccessibleButton>;
 
         const classes = classNames(this.props.className, "mx_DevicesPanel");
         return (

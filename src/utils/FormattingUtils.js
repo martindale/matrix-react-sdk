@@ -37,3 +37,29 @@ export function formatCount(count) {
 export function formatCryptoKey(key) {
     return key.match(/.{1,4}/g).join(" ");
 }
+/**
+ * calculates a numeric hash for a given string
+ *
+ * @param {string} str string to hash
+ *
+ * @return {number}
+ */
+export function hashCode(str) {
+    let hash = 0;
+    let i;
+    let chr;
+    if (str.length === 0) {
+        return hash;
+    }
+    for (i = 0; i < str.length; i++) {
+        chr = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0;
+    }
+    return Math.abs(hash);
+}
+
+export function getUserNameColorClass(userId) {
+    const colorNumber = (hashCode(userId) % 8) + 1;
+    return `mx_Username_color${colorNumber}`;
+}

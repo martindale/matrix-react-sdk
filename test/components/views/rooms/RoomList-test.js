@@ -69,11 +69,12 @@ describe('RoomList', () => {
         ReactTestUtils.findRenderedComponentWithType(root, RoomList);
 
         movingRoom = createRoom({name: 'Moving room'});
-        expect(movingRoom.roomId).toNotBe(null);
+        expect(movingRoom.roomId).not.toBe(null);
 
         // Mock joined member
         myMember = new RoomMember(movingRoomId, myUserId);
         myMember.membership = 'join';
+        movingRoom.updateMyMembership('join');
         movingRoom.getMember = (userId) => ({
             [client.credentials.userId]: myMember,
         }[userId]);
@@ -81,6 +82,7 @@ describe('RoomList', () => {
         otherRoom = createRoom({name: 'Other room'});
         myOtherMember = new RoomMember(otherRoom.roomId, myUserId);
         myOtherMember.membership = 'join';
+        otherRoom.updateMyMembership('join');
         otherRoom.getMember = (userId) => ({
             [client.credentials.userId]: myOtherMember,
         }[userId]);
@@ -137,7 +139,7 @@ describe('RoomList', () => {
             throw err;
         }
 
-        expect(expectedRoomTile).toExist();
+        expect(expectedRoomTile).toBeTruthy();
         expect(expectedRoomTile.props.room).toBe(room);
     }
 
@@ -178,7 +180,8 @@ describe('RoomList', () => {
     }
 
     function itDoesCorrectOptimisticUpdatesForDraggedRoomTiles() {
-        describe('does correct optimistic update when dragging from', () => {
+        // TODO: Re-enable dragging tests when we support dragging again.
+        xdescribe('does correct optimistic update when dragging from', () => {
             it('rooms to people', () => {
                 expectCorrectMove(undefined, 'im.vector.fake.direct');
             });

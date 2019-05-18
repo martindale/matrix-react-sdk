@@ -65,5 +65,9 @@
     "Cancel Sending": "إلغاء الإرسال",
     "Collapse panel": "طي الجدول",
     "Set Password": "تعيين كلمة سرية",
-    "Checking for an update...": "البحث عن تحديث …"
+    "Checking for an update...": "البحث عن تحديث …",
+    "powered by Matrix": "مشغل بواسطة Matrix",
+    "The platform you're on": "المنصة الحالية",
+    "Your language of choice": "اللغة المختارة",
+    "e.g. %(exampleValue)s": "مثال %(exampleValue)s"
 }

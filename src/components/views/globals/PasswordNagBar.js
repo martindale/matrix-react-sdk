@@ -31,10 +31,10 @@ export default React.createClass({
         return (
             <div className={toolbarClasses} onClick={this.onUpdateClicked}>
                 <img className="mx_MatrixToolbar_warning"
-                    src="img/warning.svg"
+                    src={require("../../../../res/img/warning.svg")}
                     width="24"
                     height="23"
-                    alt="Warning"
+                    alt=""
                 />
                 <div className="mx_MatrixToolbar_content">
                     { _t(

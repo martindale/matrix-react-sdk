@@ -44,21 +44,23 @@ export default function createMatrixClient(opts) {
         useAuthorizationHeader: true,
     };
 
-    if (localStorage) {
-        storeOpts.sessionStore = new Matrix.WebStorageSessionStore(localStorage);
-    }
-
     if (indexedDB && localStorage) {
-        // TODO: use Fabric from import
-        // FIXME: bodge to remove old database. Remove this after a few weeks.
-        indexedDB.deleteDatabase("matrix-js-sdk:default");
-
         storeOpts.store = new Matrix.IndexedDBStore({
             indexedDB: indexedDB,
             dbName: "grove-web-sync",
             localStorage: localStorage,
             workerScript: createMatrixClient.indexedDbWorkerScript,
         });
+    }
+
+    if (localStorage) {
+        storeOpts.sessionStore = new Matrix.WebStorageSessionStore(localStorage);
+    }
+
+    if (indexedDB) {
+        storeOpts.cryptoStore = new Matrix.IndexedDBCryptoStore(
+            indexedDB, "matrix-js-sdk:crypto",
+        );
     }
 
     opts = Object.assign(storeOpts, opts);

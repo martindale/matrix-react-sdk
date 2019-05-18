@@ -30,13 +30,12 @@ limitations under the License.
 }
 
 .mx_ContextualMenu {
-    border: solid 1px $menu-border-color;
     border-radius: 4px;
+    box-shadow: 4px 4px 12px 0 $menu-box-shadow-color;
     background-color: $menu-bg-color;
     color: $primary-fg-color;
     position: absolute;
-    padding: 6px;
-	font-size: 14px;
+    font-size: 14px;
     z-index: 5001;
 }
 
@@ -51,18 +50,18 @@ limitations under the License.
     width: 0;
     height: 0;
     border-top: 8px solid transparent;
-    border-left: 8px solid $menu-border-color;
+    border-left: 8px solid $menu-bg-color;
     border-bottom: 8px solid transparent;
 }
 
-.mx_ContextualMenu_chevron_right:after {
-    content:'';
+.mx_ContextualMenu_chevron_right::after {
+    content: '';
     width: 0;
     height: 0;
     border-top: 7px solid transparent;
     border-left: 7px solid $menu-bg-color;
     border-bottom: 7px solid transparent;
-    position:absolute;
+    position: absolute;
     top: -7px;
     right: 1px;
 }
@@ -78,18 +77,18 @@ limitations under the License.
     width: 0;
     height: 0;
     border-top: 8px solid transparent;
-    border-right: 8px solid $menu-border-color;
+    border-right: 8px solid $menu-bg-color;
     border-bottom: 8px solid transparent;
 }
 
-.mx_ContextualMenu_chevron_left:after{
-    content:'';
+.mx_ContextualMenu_chevron_left::after {
+    content: '';
     width: 0;
     height: 0;
     border-top: 7px solid transparent;
     border-right: 7px solid $menu-bg-color;
     border-bottom: 7px solid transparent;
-    position:absolute;
+    position: absolute;
     top: -7px;
     left: 1px;
 }
@@ -105,18 +104,18 @@ limitations under the License.
     width: 0;
     height: 0;
     border-left: 8px solid transparent;
-    border-bottom: 8px solid $menu-border-color;
+    border-bottom: 8px solid $menu-bg-color;
     border-right: 8px solid transparent;
 }
 
-.mx_ContextualMenu_chevron_top:after{
-    content:'';
+.mx_ContextualMenu_chevron_top::after {
+    content: '';
     width: 0;
     height: 0;
     border-left: 7px solid transparent;
     border-bottom: 7px solid $menu-bg-color;
     border-right: 7px solid transparent;
-    position:absolute;
+    position: absolute;
     left: -7px;
     top: 1px;
 }
@@ -132,18 +131,18 @@ limitations under the License.
     width: 0;
     height: 0;
     border-left: 8px solid transparent;
-    border-top: 8px solid $menu-border-color;
+    border-top: 8px solid $menu-bg-color;
     border-right: 8px solid transparent;
 }
 
-.mx_ContextualMenu_chevron_bottom:after{
-    content:'';
+.mx_ContextualMenu_chevron_bottom::after {
+    content: '';
     width: 0;
     height: 0;
     border-left: 7px solid transparent;
     border-top: 7px solid $menu-bg-color;
     border-right: 7px solid transparent;
-    position:absolute;
+    position: absolute;
     left: -7px;
     bottom: 1px;
 }

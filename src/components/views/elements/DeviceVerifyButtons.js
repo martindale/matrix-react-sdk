@@ -42,7 +42,9 @@ export default React.createClass({
 
     componentWillUnmount: function() {
         const cli = MatrixClientPeg.get();
-        cli.removeListener("deviceVerificationChanged", this.onDeviceVerificationChanged);
+        if (cli) {
+            cli.removeListener("deviceVerificationChanged", this.onDeviceVerificationChanged);
+        }
     },
 
     onDeviceVerificationChanged: function(userId, deviceId, deviceInfo) {
@@ -78,7 +80,7 @@ export default React.createClass({
     },
 
     render: function() {
-        let blacklistButton = null, verifyButton = null;
+        let blacklistButton = null; let verifyButton = null;
 
         if (this.state.device.isBlocked()) {
             blacklistButton = (
@@ -112,9 +114,8 @@ export default React.createClass({
             );
         }
 
-        // mx_MemberDeviceInfo because the vector's CSS on EncryptedEventDialog is awful
         return (
-            <div className="mx_MemberDeviceInfo mx_DeviceVerifyButtons" >
+            <div className="mx_DeviceVerifyButtons" >
                 { verifyButton }
                 { blacklistButton }
             </div>

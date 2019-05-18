@@ -17,6 +17,7 @@ import MatrixClientPeg from './MatrixClientPeg';
 import CallHandler from './CallHandler';
 import { _t } from './languageHandler';
 import * as Roles from './Roles';
+import {isValid3pidInvite} from "./RoomInvite";
 
 function textForMemberEvent(ev) {
     // XXX: SYJS-16 "sender is sometimes null for join messages"
@@ -129,6 +130,73 @@ function textForRoomNameEvent(ev) {
     });
 }
 
+function textForTombstoneEvent(ev) {
+    const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    return _t('%(senderDisplayName)s upgraded this room.', {senderDisplayName});
+}
+
+function textForJoinRulesEvent(ev) {
+    const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    switch (ev.getContent().join_rule) {
+        case "public":
+            return _t('%(senderDisplayName)s made the room public to whoever knows the link.', {senderDisplayName});
+        case "invite":
+            return _t('%(senderDisplayName)s made the room invite only.', {senderDisplayName});
+        default:
+            // The spec supports "knock" and "private", however nothing implements these.
+            return _t('%(senderDisplayName)s changed the join rule to %(rule)s', {
+                senderDisplayName,
+                rule: ev.getContent().join_rule,
+            });
+    }
+}
+
+function textForGuestAccessEvent(ev) {
+    const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    switch (ev.getContent().guest_access) {
+        case "can_join":
+            return _t('%(senderDisplayName)s has allowed guests to join the room.', {senderDisplayName});
+        case "forbidden":
+            return _t('%(senderDisplayName)s has prevented guests from joining the room.', {senderDisplayName});
+        default:
+            // There's no other options we can expect, however just for safety's sake we'll do this.
+            return _t('%(senderDisplayName)s changed guest access to %(rule)s', {
+                senderDisplayName,
+                rule: ev.getContent().guest_access,
+            });
+    }
+}
+
+function textForRelatedGroupsEvent(ev) {
+    const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    const groups = ev.getContent().groups || [];
+    const prevGroups = ev.getPrevContent().groups || [];
+    const added = groups.filter((g) => !prevGroups.includes(g));
+    const removed = prevGroups.filter((g) => !groups.includes(g));
+
+    if (added.length && !removed.length) {
+        return _t('%(senderDisplayName)s enabled flair for %(groups)s in this room.', {
+            senderDisplayName,
+            groups: added.join(', '),
+        });
+    } else if (!added.length && removed.length) {
+        return _t('%(senderDisplayName)s disabled flair for %(groups)s in this room.', {
+            senderDisplayName,
+            groups: removed.join(', '),
+        });
+    } else if (added.length && removed.length) {
+        return _t('%(senderDisplayName)s enabled flair for %(newGroups)s and disabled flair for ' +
+            '%(oldGroups)s in this room.', {
+            senderDisplayName,
+            newGroups: added.join(', '),
+            oldGroups: removed.join(', '),
+        });
+    } else {
+        // Don't bother rendering this change (because there were no changes)
+        return '';
+    }
+}
+
 function textForServerACLEvent(ev) {
     const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
     const prevContent = ev.getPrevContent();
@@ -198,6 +266,63 @@ function textForMessageEvent(ev) {
     return message;
 }
 
+function textForRoomAliasesEvent(ev) {
+    // An alternative implementation of this as a first-class event can be found at
+    // https://github.com/matrix-org/matrix-react-sdk/blob/dc7212ec2bd12e1917233ed7153b3e0ef529a135/src/components/views/messages/RoomAliasesEvent.js
+    // This feels a bit overkill though, and it's not clear the i18n really needs it
+    // so instead it's landing as a simple textual event.
+
+    const senderName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    const oldAliases = ev.getPrevContent().aliases || [];
+    const newAliases = ev.getContent().aliases || [];
+
+    const addedAliases = newAliases.filter((x) => !oldAliases.includes(x));
+    const removedAliases = oldAliases.filter((x) => !newAliases.includes(x));
+
+    if (!addedAliases.length && !removedAliases.length) {
+        return '';
+    }
+
+    if (addedAliases.length && !removedAliases.length) {
+        return _t('%(senderName)s added %(count)s %(addedAddresses)s as addresses for this room.', {
+            senderName: senderName,
+            count: addedAliases.length,
+            addedAddresses: addedAliases.join(', '),
+        });
+    } else if (!addedAliases.length && removedAliases.length) {
+        return _t('%(senderName)s removed %(count)s %(removedAddresses)s as addresses for this room.', {
+            senderName: senderName,
+            count: removedAliases.length,
+            removedAddresses: removedAliases.join(', '),
+        });
+    } else {
+        return _t(
+            '%(senderName)s added %(addedAddresses)s and removed %(removedAddresses)s as addresses for this room.', {
+                senderName: senderName,
+                addedAddresses: addedAliases.join(', '),
+                removedAddresses: removedAliases.join(', '),
+            },
+        );
+    }
+}
+
+function textForCanonicalAliasEvent(ev) {
+    const senderName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    const oldAlias = ev.getPrevContent().alias;
+    const newAlias = ev.getContent().alias;
+
+    if (newAlias) {
+        return _t('%(senderName)s set the main address for this room to %(address)s.', {
+            senderName: senderName,
+            address: ev.getContent().alias,
+        });
+    } else if (oldAlias) {
+        return _t('%(senderName)s removed the main address for this room.', {
+            senderName: senderName,
+        });
+    }
+}
+
 function textForCallAnswerEvent(event) {
     const senderName = event.sender ? event.sender.name : _t('Someone');
     const supported = MatrixClientPeg.get().supportsVoip() ? '' : _t('(not supported by this browser)');
@@ -215,6 +340,12 @@ function textForCallHangupEvent(event) {
             reason = _t('(could not connect media)');
         } else if (eventContent.reason === "invite_timeout") {
             reason = _t('(no answer)');
+        } else if (eventContent.reason === "user hangup") {
+            // workaround for https://github.com/vector-im/riot-web/issues/5178
+            // it seems Android randomly sets a reason of "user hangup" which is
+            // interpreted as an error code :(
+            // https://github.com/vector-im/riot-android/issues/2623
+            reason = '';
         } else {
             reason = _t('(unknown failure: %(reason)s)', {reason: eventContent.reason});
         }
@@ -236,6 +367,15 @@ function textForCallInviteEvent(event) {
 
 function textForThreePidInviteEvent(event) {
     const senderName = event.sender ? event.sender.name : event.getSender();
+
+    if (!isValid3pidInvite(event)) {
+        const targetDisplayName = event.getPrevContent().display_name || _t("Someone");
+        return _t('%(senderName)s revoked the invitation for %(targetDisplayName)s to join the room.', {
+            senderName,
+            targetDisplayName,
+        });
+    }
+
     return _t('%(senderName)s sent an invitation to %(targetDisplayName)s to join the room.', {
         senderName,
         targetDisplayName: event.getContent().display_name,
@@ -359,6 +499,8 @@ const handlers = {
 };
 
 const stateHandlers = {
+    'm.room.aliases': textForRoomAliasesEvent,
+    'm.room.canonical_alias': textForCanonicalAliasEvent,
     'm.room.name': textForRoomNameEvent,
     'm.room.topic': textForTopicEvent,
     'm.room.member': textForMemberEvent,
@@ -368,6 +510,10 @@ const stateHandlers = {
     'm.room.power_levels': textForPowerEvent,
     'm.room.pinned_events': textForPinnedEvent,
     'm.room.server_acl': textForServerACLEvent,
+    'm.room.tombstone': textForTombstoneEvent,
+    'm.room.join_rules': textForJoinRulesEvent,
+    'm.room.guest_access': textForGuestAccessEvent,
+    'm.room.related_groups': textForRelatedGroupsEvent,
 
     'im.vector.modular.widgets': textForWidgetEvent,
 };

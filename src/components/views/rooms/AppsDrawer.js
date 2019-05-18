@@ -30,6 +30,7 @@ import ScalarMessaging from '../../../ScalarMessaging';
 import { _t } from '../../../languageHandler';
 import WidgetUtils from '../../../utils/WidgetUtils';
 import WidgetEchoStore from "../../../stores/WidgetEchoStore";
+import AccessibleButton from '../elements/AccessibleButton';
 
 // The maximum number of widgets that can be added in a room
 const MAX_WIDGETS = 2;
@@ -143,12 +144,16 @@ module.exports = React.createClass({
 
     _launchManageIntegrations: function() {
         const IntegrationsManager = sdk.getComponent('views.settings.IntegrationsManager');
-        const src = (this.scalarClient !== null && this.scalarClient.hasCredentials()) ?
+        this.scalarClient.connect().done(() => {
+            const src = (this.scalarClient !== null && this.scalarClient.hasCredentials()) ?
                 this.scalarClient.getScalarInterfaceUrlForRoom(this.props.room, 'add_integ') :
                 null;
-        Modal.createTrackedDialog('Integrations Manager', '', IntegrationsManager, {
-            src: src,
-        }, 'mx_IntegrationsManager');
+            Modal.createTrackedDialog('Integrations Manager', '', IntegrationsManager, {
+                src: src,
+            }, 'mx_IntegrationsManager');
+        }, (err) => {
+            console.error('Error ensuring a valid scalar_token exists', err);
+        });
     },
 
     onClickAddWidget: function(e) {
@@ -189,21 +194,23 @@ module.exports = React.createClass({
             />);
         });
 
+        if (apps.length == 0) {
+            return <div></div>;
+        }
+
         let addWidget;
         if (this.props.showApps &&
             this._canUserModify()
         ) {
-            addWidget = <div
+            addWidget = <AccessibleButton
                 onClick={this.onClickAddWidget}
-                role='button'
-                tabIndex='0'
                 className={this.state.apps.length<2 ?
                     'mx_AddWidget_button mx_AddWidget_button_full_width' :
                     'mx_AddWidget_button'
                 }
                 title={_t('Add a widget')}>
                 [+] { _t('Add a widget') }
-            </div>;
+            </AccessibleButton>;
         }
 
         let spinner;
