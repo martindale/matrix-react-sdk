@@ -1,6 +1,6 @@
-npm-debug.log
 /.npmrc
 /*.log
+package-lock.json
 
 /node_modules
 /lib

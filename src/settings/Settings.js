@@ -102,7 +102,7 @@ export const SETTINGS = {
     },
     "feature_room_breadcrumbs": {
         isFeature: true,
-        displayName: _td("Show recent room avatars above the room list (refresh to apply changes)"),
+        displayName: _td("Show recent room avatars above the room list"),
         supportedLevels: LEVELS_FEATURE,
         default: false,
     },
@@ -258,6 +258,10 @@ export const SETTINGS = {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
         default: "en",
     },
+    "breadcrumb_rooms": {
+        supportedLevels: ['account'],
+        default: [],
+    },
     "analyticsOptIn": {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
         displayName: _td('Send analytics data'),
@@ -339,6 +343,13 @@ export const SETTINGS = {
         supportedLevels: LEVELS_ACCOUNT_SETTINGS,
         displayName: _td('Show developer tools'),
         default: false,
+    },
+    "widgetOpenIDPermissions": {
+        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS,
+        default: {
+            allow: [],
+            deny: [],
+        },
     },
     "RoomList.orderByImportance": {
         supportedLevels: LEVELS_ACCOUNT_SETTINGS,

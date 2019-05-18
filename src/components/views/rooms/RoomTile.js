@@ -68,12 +68,11 @@ module.exports = React.createClass({
     },
 
     _shouldShowNotifBadge: function() {
-        const showBadgeInStates = [RoomNotifs.ALL_MESSAGES, RoomNotifs.ALL_MESSAGES_LOUD];
-        return showBadgeInStates.indexOf(this.state.notifState) > -1;
+        return RoomNotifs.BADGE_STATES.includes(this.state.notifState);
     },
 
     _shouldShowMentionBadge: function() {
-        return this.state.notifState !== RoomNotifs.MUTE;
+        return RoomNotifs.MENTION_BADGE_STATES.includes(this.state.notifState);
     },
 
     _isDirectMessageRoom: function(roomId) {
@@ -364,8 +363,8 @@ module.exports = React.createClass({
                 label = <EmojiText element="div" title={name} className={nameClasses} dir="auto">{ name }</EmojiText>;
             }
         } else if (this.state.hover) {
-            const RoomTooltip = sdk.getComponent("rooms.RoomTooltip");
-            tooltip = <RoomTooltip className="mx_RoomTile_tooltip" label={this.props.room.name} dir="auto" />;
+            const Tooltip = sdk.getComponent("elements.Tooltip");
+            tooltip = <Tooltip className="mx_RoomTile_tooltip" label={this.props.room.name} dir="auto" />;
         }
 
         //var incomingCallBox;

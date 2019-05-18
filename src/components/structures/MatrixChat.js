@@ -29,6 +29,7 @@ import PlatformPeg from "../../PlatformPeg";
 import SdkConfig from "../../SdkConfig";
 import * as RoomListSorter from "../../RoomListSorter";
 import dis from "../../dispatcher";
+import Notifier from '../../Notifier';
 
 import Modal from "../../Modal";
 import Tinter from "../../Tinter";
@@ -48,6 +49,8 @@ import { _t, getCurrentLanguage } from '../../languageHandler';
 import SettingsStore, {SettingLevel} from "../../settings/SettingsStore";
 import { startAnyRegistrationFlow } from "../../Registration.js";
 import { messageForSyncError } from '../../utils/ErrorUtils';
+import ResizeNotifier from "../../utils/ResizeNotifier";
+import TimelineExplosionDialog from "../views/dialogs/TimelineExplosionDialog";
 
 const AutoDiscovery = Matrix.AutoDiscovery;
 
@@ -194,6 +197,8 @@ export default React.createClass({
             hideToSRUsers: false,
 
             syncError: null, // If the current syncing status is ERROR, the error object, otherwise null.
+            resizeNotifier: new ResizeNotifier(),
+            showNotifierToolbar: false,
         };
         return s;
     },
@@ -316,6 +321,9 @@ export default React.createClass({
         // N.B. we don't call the whole of setTheme() here as we may be
         // racing with the theme CSS download finishing from index.js
         Tinter.tint();
+
+        // For PersistentElement
+        this.state.resizeNotifier.on("middlePanelResized", this._dispatchTimelineResize);
     },
 
     componentDidMount: function() {
@@ -398,6 +406,7 @@ export default React.createClass({
         dis.unregister(this.dispatcherRef);
         window.removeEventListener("focus", this.onFocus);
         window.removeEventListener('resize', this.handleResize);
+        this.state.resizeNotifier.removeListener("middlePanelResized", this._dispatchTimelineResize);
     },
 
     componentWillUpdate: function(props, state) {
@@ -556,19 +565,8 @@ export default React.createClass({
                     },
                 });
                 break;
-            case 'view_user':
-                // FIXME: ugly hack to expand the RightPanel and then re-dispatch.
-                if (this.state.collapsedRhs) {
-                    setTimeout(()=>{
-                        dis.dispatch({
-                            action: 'show_right_panel',
-                        });
-                        dis.dispatch({
-                            action: 'view_user',
-                            member: payload.member,
-                        });
-                    }, 0);
-                }
+            case 'view_user_info':
+                this._viewUser(payload.userId, payload.subAction);
                 break;
             case 'view_room':
                 // Takes either a room ID or room alias: if switching to a room the client is already
@@ -588,8 +586,8 @@ export default React.createClass({
                 break;
             case 'view_user_settings': {
                 const UserSettingsDialog = sdk.getComponent("dialogs.UserSettingsDialog");
-                Modal.createTrackedDialog('User settings', '', UserSettingsDialog, {}, 'mx_SettingsDialog',
-                    /*isPriority=*/false, /*isStatic=*/true);
+                Modal.createTrackedDialog('User settings', '', UserSettingsDialog, {},
+                    /*className=*/null, /*isPriority=*/false, /*isStatic=*/true);
 
                 // View the welcome or home page if we need something to look at
                 this._viewSomethingBehindModal();
@@ -638,8 +636,9 @@ export default React.createClass({
             case 'view_invite':
                 showRoomInviteDialog(payload.roomId);
                 break;
-            case 'notifier_enabled':
-                this.forceUpdate();
+            case 'notifier_enabled': {
+                    this.setState({showNotifierToolbar: Notifier.shouldShowToolbar()});
+                }
                 break;
             case 'hide_left_panel':
                 this.setState({
@@ -923,6 +922,22 @@ export default React.createClass({
         this.notifyNewScreen('home');
     },
 
+    _viewUser: function(userId, subAction) {
+        // Wait for the first sync so that `getRoom` gives us a room object if it's
+        // in the sync response
+        const waitForSync = this.firstSyncPromise ?
+            this.firstSyncPromise.promise : Promise.resolve();
+        waitForSync.then(() => {
+            if (subAction === 'chat') {
+                this._chatCreateOrReuse(userId);
+                return;
+            }
+            this.notifyNewScreen('user/' + userId);
+            this.setState({currentUserId: userId});
+            this._setPage(PageTypes.UserView);
+        });
+    },
+
     _setMxId: function(payload) {
         const SetMxIdDialog = sdk.getComponent('views.dialogs.SetMxIdDialog');
         const close = Modal.createTrackedDialog('Set MXID', '', SetMxIdDialog, {
@@ -1058,34 +1073,48 @@ export default React.createClass({
             button: _t("Leave"),
             onFinished: (shouldLeave) => {
                 if (shouldLeave) {
-                    const d = MatrixClientPeg.get().leave(roomId);
+                    const d = MatrixClientPeg.get().leaveRoomChain(roomId);
 
                     // FIXME: controller shouldn't be loading a view :(
                     const Loader = sdk.getComponent("elements.Spinner");
                     const modal = Modal.createDialog(Loader, null, 'mx_Dialog_spinner');
 
-                    d.then(() => {
+                    d.then((errors) => {
                         modal.close();
+
+                        for (const leftRoomId of Object.keys(errors)) {
+                            const err = errors[leftRoomId];
+                            if (!err) continue;
+
+                            console.error("Failed to leave room " + leftRoomId + " " + err);
+                            let title = _t("Failed to leave room");
+                            let message = _t("Server may be unavailable, overloaded, or you hit a bug.");
+                            if (err.errcode === 'M_CANNOT_LEAVE_SERVER_NOTICE_ROOM') {
+                                title = _t("Can't leave Server Notices room");
+                                message = _t(
+                                    "This room is used for important messages from the Homeserver, " +
+                                    "so you cannot leave it.",
+                                );
+                            } else if (err && err.message) {
+                                message = err.message;
+                            }
+                            Modal.createTrackedDialog('Failed to leave room', '', ErrorDialog, {
+                                title: title,
+                                description: message,
+                            });
+                            return;
+                        }
+
                         if (this.state.currentRoomId === roomId) {
                             dis.dispatch({action: 'view_next_room'});
                         }
                     }, (err) => {
+                        // This should only happen if something went seriously wrong with leaving the chain.
                         modal.close();
                         console.error("Failed to leave room " + roomId + " " + err);
-                        let title = _t("Failed to leave room");
-                        let message = _t("Server may be unavailable, overloaded, or you hit a bug.");
-                        if (err.errcode == 'M_CANNOT_LEAVE_SERVER_NOTICE_ROOM') {
-                            title = _t("Can't leave Server Notices room");
-                            message = _t(
-                                "This room is used for important messages from the Homeserver, " +
-                                "so you cannot leave it.",
-                            );
-                        } else if (err && err.message) {
-                            message = err.message;
-                        }
                         Modal.createTrackedDialog('Failed to leave room', '', ErrorDialog, {
-                            title: title,
-                            description: message,
+                            title: _t("Failed to leave room"),
+                            description: _t("Unknown error"),
                         });
                     });
                 }
@@ -1173,7 +1202,7 @@ export default React.createClass({
      * Called when a new logged in session has started
      */
     _onLoggedIn: async function() {
-        this.setStateForNewView({view: VIEWS.LOGGED_IN});
+        this.setStateForNewView({ view: VIEWS.LOGGED_IN });
         if (this._is_registered) {
             this._is_registered = false;
 
@@ -1278,6 +1307,17 @@ export default React.createClass({
             return self._loggedInView.child.canResetTimelineInRoom(roomId);
         });
 
+        cli.on('sync.unexpectedError', function(err) {
+            if (err.message && err.message.includes("live timeline ") && err.message.includes(" is no longer live ")) {
+                console.error("Caught timeline explosion - trying to ask user for more information");
+                if (Modal.hasDialogs()) {
+                    console.warn("User has another dialog open - skipping prompt");
+                    return;
+                }
+                Modal.createTrackedDialog('Timeline exploded', '', TimelineExplosionDialog, {});
+            }
+        });
+
         cli.on('sync', function(state, prevState, data) {
             // LifecycleStore and others cannot directly subscribe to matrix client for
             // events because flux only allows store state changes during flux dispatches.
@@ -1306,7 +1346,10 @@ export default React.createClass({
             self.firstSyncPromise.resolve();
 
             dis.dispatch({action: 'focus_composer'});
-            self.setState({ready: true});
+            self.setState({
+                ready: true,
+                showNotifierToolbar: Notifier.shouldShowToolbar(),
+            });
         });
         cli.on('Call.incoming', function(call) {
             // we dispatch this synchronously to make sure that the event
@@ -1535,7 +1578,16 @@ export default React.createClass({
         } else if (screen.indexOf('room/') == 0) {
             const segments = screen.substring(5).split('/');
             const roomString = segments[0];
-            const eventId = segments[1]; // undefined if no event id given
+            let eventId = segments.splice(1).join("/"); // empty string if no event id given
+
+            // Previously we pulled the eventID from the segments in such a way
+            // where if there was no eventId then we'd get undefined. However, we
+            // now do a splice and join to handle v3 event IDs which results in
+            // an empty string. To maintain our potential contract with the rest
+            // of the app, we coerce the eventId to be undefined where applicable.
+            if (!eventId) eventId = undefined;
+
+            // TODO: Handle encoded room/event IDs: https://github.com/vector-im/riot-web/issues/9149
 
             // FIXME: sort_out caseConsistency
             const thirdPartyInvite = {
@@ -1579,19 +1631,10 @@ export default React.createClass({
             dis.dispatch(payload);
         } else if (screen.indexOf('user/') == 0) {
             const userId = screen.substring(5);
-
-            // Wait for the first sync so that `getRoom` gives us a room object if it's
-            // in the sync response
-            const waitFor = this.firstSyncPromise ?
-                this.firstSyncPromise.promise : Promise.resolve();
-            waitFor.then(() => {
-                if (params.action === 'chat') {
-                    this._chatCreateOrReuse(userId);
-                    return;
-                }
-                this.notifyNewScreen('user/' + userId);
-                this.setState({currentUserId: userId});
-                this._setPage(PageTypes.UserView);
+            dis.dispatch({
+                action: 'view_user_info',
+                userId: userId,
+                subAction: params.action,
             });
         } else if (screen.indexOf('group/') == 0) {
             const groupId = screen.substring(6);
@@ -1661,7 +1704,12 @@ export default React.createClass({
             dis.dispatch({ action: 'show_right_panel' });
         }
 
+        this.state.resizeNotifier.notifyWindowResized();
         this._windowWidth = window.innerWidth;
+    },
+
+    _dispatchTimelineResize() {
+        dis.dispatch({ action: 'timeline_resize' });
     },
 
     onRoomCreated: function(roomId) {
@@ -1685,14 +1733,15 @@ export default React.createClass({
 
     // returns a promise which resolves to the new MatrixClient
     onRegistered: function(credentials) {
-        // XXX: This should be in state or ideally store(s) because we risk not
-        //      rendering the most up-to-date view of state otherwise.
-        this._is_registered = true;
         if (this.state.register_session_id) {
             // The user came in through an email validation link. To avoid overwriting
-            // their session, check to make sure the session isn't someone else.
+            // their session, check to make sure the session isn't someone else, and
+            // isn't a guest user since we'll usually have set a guest user session before
+            // starting the registration process. This isn't perfect since it's possible
+            // the user had a separate guest session they didn't actually mean to replace.
             const sessionOwner = Lifecycle.getStoredSessionOwner();
-            if (sessionOwner && sessionOwner !== credentials.userId) {
+            const sessionIsGuest = Lifecycle.getStoredSessionIsGuest();
+            if (sessionOwner && !sessionIsGuest && sessionOwner !== credentials.userId) {
                 console.log(
                     `Found a session for ${sessionOwner} but ${credentials.userId} is trying to verify their ` +
                     `email address. Restoring the session for ${sessionOwner} with warning.`,
@@ -1720,9 +1769,12 @@ export default React.createClass({
                     hasCancelButton: false,
                 });
 
-                return;
+                return MatrixClientPeg.get();
             }
         }
+        // XXX: This should be in state or ideally store(s) because we risk not
+        //      rendering the most up-to-date view of state otherwise.
+        this._is_registered = true;
         return Lifecycle.setLoggedIn(credentials);
     },
 
@@ -1984,7 +2036,6 @@ export default React.createClass({
                     fallbackHsUrl={this.getFallbackHsUrl()}
                     defaultDeviceDisplayName={this.props.defaultDeviceDisplayName}
                     onForgotPasswordClick={this.onForgotPasswordClick}
-                    enableGuest={this.props.enableGuest}
                     onServerConfigChange={this.onServerConfigChange}
                 />
             );
