@@ -24,6 +24,7 @@ import {wantsDateSeparator} from '../../DateUtils';
 import sdk from '../../index';
 
 import MatrixClientPeg from '../../MatrixClientPeg';
+import SettingsStore from '../../settings/SettingsStore';
 
 const CONTINUATION_MAX_INTERVAL = 5 * 60 * 1000; // 5 minutes
 const continuedTypes = ['m.sticker', 'm.room.message'];
@@ -92,6 +93,9 @@ module.exports = React.createClass({
 
         // show timestamps always
         alwaysShowTimestamps: PropTypes.bool,
+
+        // helper function to access relations for an event
+        getRelationsForEvent: PropTypes.func,
     },
 
     componentWillMount: function() {
@@ -243,6 +247,10 @@ module.exports = React.createClass({
     _shouldShowEvent: function(mxEv) {
         if (mxEv.sender && MatrixClientPeg.get().isUserIgnored(mxEv.sender.userId)) {
             return false; // ignored = no show (only happens if the ignore happens after an event was received)
+        }
+
+        if (SettingsStore.getValue("showHiddenEventsInTimeline")) {
+            return true;
         }
 
         const EventTile = sdk.getComponent('rooms.EventTile');
@@ -447,8 +455,13 @@ module.exports = React.createClass({
 
     _getTilesForEvent: function(prevEvent, mxEv, last) {
         const EventTile = sdk.getComponent('rooms.EventTile');
+        const MessageEditor = sdk.getComponent('elements.MessageEditor');
         const DateSeparator = sdk.getComponent('messages.DateSeparator');
         const ret = [];
+
+        if (this.props.editEvent && this.props.editEvent.getId() === mxEv.getId()) {
+            return [<MessageEditor key={mxEv.getId()} event={mxEv} />];
+        }
 
         // is this a continuation of the previous message?
         let continuation = false;
@@ -511,22 +524,28 @@ module.exports = React.createClass({
             readReceipts = this._getReadReceiptsForEvent(mxEv);
         }
         ret.push(
-                <li key={eventId}
-                        ref={this._collectEventNode.bind(this, eventId)}
-                        data-scroll-tokens={scrollToken}>
-                    <EventTile mxEvent={mxEv} continuation={continuation}
-                        isRedacted={mxEv.isRedacted()}
-                        onHeightChanged={this._onHeightChanged}
-                        readReceipts={readReceipts}
-                        readReceiptMap={this._readReceiptMap}
-                        showUrlPreview={this.props.showUrlPreview}
-                        checkUnmounting={this._isUnmounting}
-                        eventSendStatus={mxEv.status}
-                        tileShape={this.props.tileShape}
-                        isTwelveHour={this.props.isTwelveHour}
-                        permalinkCreator={this.props.permalinkCreator}
-                        last={last} isSelectedEvent={highlight} />
-                </li>,
+            <li key={eventId}
+                ref={this._collectEventNode.bind(this, eventId)}
+                data-scroll-tokens={scrollToken}
+            >
+                <EventTile mxEvent={mxEv}
+                    continuation={continuation}
+                    isRedacted={mxEv.isRedacted()}
+                    replacingEventId={mxEv.replacingEventId()}
+                    onHeightChanged={this._onHeightChanged}
+                    readReceipts={readReceipts}
+                    readReceiptMap={this._readReceiptMap}
+                    showUrlPreview={this.props.showUrlPreview}
+                    checkUnmounting={this._isUnmounting}
+                    eventSendStatus={mxEv.replacementOrOwnStatus()}
+                    tileShape={this.props.tileShape}
+                    isTwelveHour={this.props.isTwelveHour}
+                    permalinkCreator={this.props.permalinkCreator}
+                    last={last}
+                    isSelectedEvent={highlight}
+                    getRelationsForEvent={this.props.getRelationsForEvent}
+                />
+            </li>,
         );
 
         return ret;

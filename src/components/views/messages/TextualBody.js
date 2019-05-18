@@ -22,6 +22,7 @@ import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import highlight from 'highlight.js';
 import * as HtmlUtils from '../../../HtmlUtils';
+import {formatDate} from '../../../DateUtils';
 import sdk from '../../../index';
 import ScalarAuthClient from '../../../ScalarAuthClient';
 import Modal from '../../../Modal';
@@ -88,7 +89,10 @@ module.exports = React.createClass({
 
     componentDidMount: function() {
         this._unmounted = false;
+        this._applyFormatting();
+    },
 
+    _applyFormatting() {
         // pillifyLinks BEFORE linkifyElement because plain room/user URLs in the composer
         // are still sent as plaintext URLs. If these are ever pillified in the composer,
         // we should be pillify them here by doing the linkifying BEFORE the pillifying.
@@ -123,7 +127,11 @@ module.exports = React.createClass({
         }
     },
 
-    componentDidUpdate: function() {
+    componentDidUpdate: function(prevProps) {
+        const messageWasEdited = prevProps.replacingEventId !== this.props.replacingEventId;
+        if (messageWasEdited) {
+            this._applyFormatting();
+        }
         this.calculateUrlPreview();
     },
 
@@ -137,9 +145,11 @@ module.exports = React.createClass({
         // exploit that events are immutable :)
         return (nextProps.mxEvent.getId() !== this.props.mxEvent.getId() ||
                 nextProps.highlights !== this.props.highlights ||
+                nextProps.replacingEventId !== this.props.replacingEventId ||
                 nextProps.highlightLink !== this.props.highlightLink ||
                 nextProps.showUrlPreview !== this.props.showUrlPreview ||
                 nextState.links !== this.state.links ||
+                nextState.editedMarkerHovered !== this.state.editedMarkerHovered ||
                 nextState.widgetHidden !== this.state.widgetHidden);
     },
 
@@ -424,6 +434,34 @@ module.exports = React.createClass({
         });
     },
 
+    _onMouseEnterEditedMarker: function() {
+        this.setState({editedMarkerHovered: true});
+    },
+
+    _onMouseLeaveEditedMarker: function() {
+        this.setState({editedMarkerHovered: false});
+    },
+
+    _renderEditedMarker: function() {
+        let editedTooltip;
+        if (this.state.editedMarkerHovered) {
+            const Tooltip = sdk.getComponent('elements.Tooltip');
+            const editEvent = this.props.mxEvent.replacingEvent();
+            const date = editEvent && formatDate(editEvent.getDate());
+            editedTooltip = <Tooltip
+                tooltipClassName="mx_Tooltip_timeline"
+                label={_t("Edited at %(date)s", {date})}
+            />;
+        }
+        return (
+            <div
+                key="editedMarker" className="mx_EventTile_edited"
+                onMouseEnter={this._onMouseEnterEditedMarker}
+                onMouseLeave={this._onMouseLeaveEditedMarker}
+            >{editedTooltip}<span>{`(${_t("edited")})`}</span></div>
+        );
+    },
+
     render: function() {
         const EmojiText = sdk.getComponent('elements.EmojiText');
         const mxEvent = this.props.mxEvent;
@@ -435,6 +473,9 @@ module.exports = React.createClass({
             // Part of Replies fallback support
             stripReplyFallback: stripReply,
         });
+        if (this.props.replacingEventId) {
+            body = [body, this._renderEditedMarker()];
+        }
 
         if (this.props.highlightLink) {
             body = <a href={this.props.highlightLink}>{ body }</a>;
