@@ -18,6 +18,11 @@ import * as Matrix from 'matrix-js-sdk';
 import SettingsStore, {SettingLevel} from "./settings/SettingsStore";
 
 export default {
+    hasAnyLabeledDevices: async function() {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return devices.some(d => !!d.label);
+    },
+
     getDevices: function() {
         // Only needed for Electron atm, though should work in modern browsers
         // once permission has been granted to the webapp
@@ -25,8 +30,6 @@ export default {
             const audiooutput = [];
             const audioinput = [];
             const videoinput = [];
-
-            if (devices.some((device) => !device.label)) return false;
 
             devices.forEach((device) => {
                 switch (device.kind) {
@@ -68,5 +71,17 @@ export default {
     setVideoInput: function(deviceId) {
         SettingsStore.setValue("webrtc_videoinput", null, SettingLevel.DEVICE, deviceId);
         Matrix.setMatrixCallVideoInput(deviceId);
+    },
+
+    getAudioOutput: function() {
+        return SettingsStore.getValueAt(SettingLevel.DEVICE, "webrtc_audiooutput");
+    },
+
+    getAudioInput: function() {
+        return SettingsStore.getValueAt(SettingLevel.DEVICE, "webrtc_audioinput");
+    },
+
+    getVideoInput: function() {
+        return SettingsStore.getValueAt(SettingLevel.DEVICE, "webrtc_videoinput");
     },
 };

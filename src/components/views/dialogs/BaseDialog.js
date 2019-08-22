@@ -1,6 +1,6 @@
 /*
 Copyright 2017 Vector Creations Ltd
-Copyright 2018 New Vector Ltd
+Copyright 2018, 2019 New Vector Ltd
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import { MatrixClient } from 'matrix-js-sdk';
 
 import { KeyCode } from '../../../Keyboard';
 import AccessibleButton from '../elements/AccessibleButton';
-import sdk from '../../../index';
 import MatrixClientPeg from '../../../MatrixClientPeg';
 
 /**
@@ -56,9 +55,13 @@ export default React.createClass({
         // CSS class to apply to dialog div
         className: PropTypes.string,
 
+        // if true, dialog container is 60% of the viewport width. Otherwise,
+        // the container will have no fixed size, allowing its contents to
+        // determine its size. Default: true.
+        fixedWidth: PropTypes.bool,
+
         // Title for the dialog.
-        // (could probably actually be something more complicated than a string if desired)
-        title: PropTypes.string.isRequired,
+        title: PropTypes.node.isRequired,
 
         // children should be the content of the dialog
         children: PropTypes.node,
@@ -74,6 +77,7 @@ export default React.createClass({
     getDefaultProps: function() {
         return {
             hasCancel: true,
+            fixedWidth: true,
         };
     },
 
@@ -107,18 +111,18 @@ export default React.createClass({
     },
 
     render: function() {
-        const TintableSvg = sdk.getComponent("elements.TintableSvg");
-
         let cancelButton;
         if (this.props.hasCancel) {
             cancelButton = <AccessibleButton onClick={this._onCancelClick} className="mx_Dialog_cancelButton">
-                <TintableSvg src="img/icons-close-button.svg" width="35" height="35" />
             </AccessibleButton>;
         }
 
         return (
             <FocusTrap onKeyDown={this._onKeyDown}
-                className={this.props.className}
+                className={classNames({
+                    [this.props.className]: true,
+                    'mx_Dialog_fixedWidth': this.props.fixedWidth,
+                })}
                 role="dialog"
                 aria-labelledby='mx_BaseDialog_title'
                 // This should point to a node describing the dialog.
@@ -129,9 +133,14 @@ export default React.createClass({
                 // AT users can skip its presentation.
                 aria-describedby={this.props.contentId}
             >
-                { cancelButton }
-                <div className={classNames('mx_Dialog_title', this.props.titleClass)} id='mx_BaseDialog_title'>
-                    { this.props.title }
+                <div className={classNames('mx_Dialog_header', {
+                    'mx_Dialog_headerWithButton': !!this.props.headerButton,
+                })}>
+                    <div className={classNames('mx_Dialog_title', this.props.titleClass)} id='mx_BaseDialog_title'>
+                        { this.props.title }
+                    </div>
+                    { this.props.headerButton }
+                    { cancelButton }
                 </div>
                 { this.props.children }
             </FocusTrap>

@@ -1,5 +1,6 @@
 /*
  Copyright 2016 Aviral Dasgupta
+Copyright 2019 Michael Telatynski <7t3chguy@gmail.com>
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -15,6 +16,7 @@
  */
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import sdk from '../../../index';
 import request from 'browser-request';
 import { _t } from '../../../languageHandler';
@@ -36,8 +38,12 @@ export default class ChangelogDialog extends React.Component {
         for (let i=0; i<REPOS.length; i++) {
             const oldVersion = version2[2*i];
             const newVersion = version[2*i];
-            request(`https://api.github.com/repos/${REPOS[i]}/compare/${oldVersion}...${newVersion}`, (a, b, body) => {
-                if (body == null) return;
+            const url = `https://riot.im/github/repos/${REPOS[i]}/compare/${oldVersion}...${newVersion}`;
+            request(url, (err, response, body) => {
+                if (response.statusCode < 200 || response.statusCode >= 300) {
+                    this.setState({ [REPOS[i]]: response.statusText });
+                    return;
+                }
                 this.setState({[REPOS[i]]: JSON.parse(body).commits});
             });
         }
@@ -47,7 +53,7 @@ export default class ChangelogDialog extends React.Component {
         return (
             <li key={commit.sha} className="mx_ChangelogDialog_li">
                 <a href={commit.html_url} target="_blank" rel="noopener">
-                    {commit.commit.message}
+                    {commit.commit.message.split('\n')[0]}
                 </a>
             </li>
         );
@@ -58,13 +64,20 @@ export default class ChangelogDialog extends React.Component {
         const QuestionDialog = sdk.getComponent('dialogs.QuestionDialog');
 
         const logs = REPOS.map(repo => {
-            if (this.state[repo] == null) return <Spinner key={repo} />;
+            let content;
+            if (this.state[repo] == null) {
+                content = <Spinner key={repo} />;
+            } else if (typeof this.state[repo] === "string") {
+                content = _t("Unable to load commit detail: %(msg)s", {
+                    msg: this.state[repo],
+                });
+            } else {
+                content = this.state[repo].map(this._elementsForCommit);
+            }
             return (
                 <div key={repo}>
                     <h2>{repo}</h2>
-                    <ul>
-                    {this.state[repo].map(this._elementsForCommit)}
-                    </ul>
+                    <ul>{content}</ul>
                 </div>
             );
         });
@@ -88,7 +101,7 @@ export default class ChangelogDialog extends React.Component {
 }
 
 ChangelogDialog.propTypes = {
-    version: React.PropTypes.string.isRequired,
-    newVersion: React.PropTypes.string.isRequired,
-    onFinished: React.PropTypes.func.isRequired,
+    version: PropTypes.string.isRequired,
+    newVersion: PropTypes.string.isRequired,
+    onFinished: PropTypes.func.isRequired,
 };

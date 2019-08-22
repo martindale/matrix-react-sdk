@@ -66,7 +66,7 @@ const customVariables = {
     },
     'User Type': {
         id: 3,
-        expl: _td('Whether or not you\'re logged in (we don\'t record your user name)'),
+        expl: _td('Whether or not you\'re logged in (we don\'t record your username)'),
         example: 'Logged In',
     },
     'Chosen Language': {
@@ -83,6 +83,11 @@ const customVariables = {
         id: 6,
         expl: _td('Whether or not you\'re using the Richtext mode of the Rich Text Editor'),
         example: 'off',
+    },
+    'Breadcrumbs': {
+        id: 9,
+        expl: _td("Whether or not you're using the 'breadcrumbs' feature (avatars above the room list)"),
+        example: 'disabled',
     },
     'Homeserver URL': {
         id: 7,
@@ -201,6 +206,7 @@ class Analytics {
 
     trackEvent(category, action, name, value) {
         if (this.disabled) return;
+        this._paq.push(['setCustomUrl', getRedactedUrl()]);
         this._paq.push(['trackEvent', category, action, name, value]);
     }
 
@@ -233,6 +239,11 @@ class Analytics {
     setRichtextMode(state) {
         if (this.disabled) return;
         this._setVisitVariable('RTE: Uses Richtext Mode', state ? 'on' : 'off');
+    }
+
+    setBreadcrumbs(state) {
+        if (this.disabled) return;
+        this._setVisitVariable('Breadcrumbs', state ? 'enabled' : 'disabled');
     }
 
     showDetailsModal() {
@@ -269,7 +280,7 @@ class Analytics {
         const ErrorDialog = sdk.getComponent('dialogs.ErrorDialog');
         Modal.createTrackedDialog('Analytics Details', '', ErrorDialog, {
             title: _t('Analytics'),
-            description: <div className="mx_UserSettings_analyticsModal">
+            description: <div className="mx_AnalyticsModal">
                 <div>
                     { _t('The information being sent to us to help make RPG better includes:') }
                 </div>

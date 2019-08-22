@@ -1,6 +1,8 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
 Copyright 2017 New Vector Ltd
+Copyright 2019 The Matrix.org Foundation C.I.C.
+Copyright 2019 Michael Telatynski <7t3chguy@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,7 +19,6 @@ limitations under the License.
 
 'use strict';
 
-
 import ReplyThread from "../elements/ReplyThread";
 
 const React = require('react');
@@ -30,9 +31,7 @@ const sdk = require('../../../index');
 const TextForEvent = require('../../../TextForEvent');
 import withMatrixClient from '../../../wrappers/withMatrixClient';
 
-const ContextualMenu = require('../../structures/ContextualMenu');
 import dis from '../../../dispatcher';
-import {makeEventPermalink} from "../../../matrix-to";
 import SettingsStore from "../../../settings/SettingsStore";
 import {EventStatus} from 'matrix-js-sdk';
 
@@ -62,6 +61,10 @@ const stateEventTileTypes = {
     'm.room.pinned_events': 'messages.TextualEvent',
     'm.room.server_acl': 'messages.TextualEvent',
     'im.vector.modular.widgets': 'messages.TextualEvent',
+    'm.room.tombstone': 'messages.TextualEvent',
+    'm.room.join_rules': 'messages.TextualEvent',
+    'm.room.guest_access': 'messages.TextualEvent',
+    'm.room.related_groups': 'messages.TextualEvent',
 };
 
 function getHandlerTile(ev) {
@@ -126,10 +129,10 @@ module.exports = withMatrixClient(React.createClass({
         isSelectedEvent: PropTypes.bool,
 
         /* callback called when dynamic content in events are loaded */
-        onWidgetLoad: PropTypes.func,
+        onHeightChanged: PropTypes.func,
 
         /* a list of read-receipts we should show. Each object has a 'roomMember' and 'ts'. */
-        readReceipts: PropTypes.arrayOf(React.PropTypes.object),
+        readReceipts: PropTypes.arrayOf(PropTypes.object),
 
         /* opaque readreceipt info for each userId; used by ReadReceiptMarker
          * to manage its animations. Should be an empty object when the room
@@ -158,19 +161,25 @@ module.exports = withMatrixClient(React.createClass({
 
         // show twelve hour timestamps
         isTwelveHour: PropTypes.bool,
+
+        // helper function to access relations for this event
+        getRelationsForEvent: PropTypes.func,
+
+        // whether to show reactions for this event
+        showReactions: PropTypes.bool,
     },
 
     getDefaultProps: function() {
         return {
-            // no-op function because onWidgetLoad is optional yet some sub-components assume its existence
-            onWidgetLoad: function() {},
+            // no-op function because onHeightChanged is optional yet some sub-components assume its existence
+            onHeightChanged: function() {},
         };
     },
 
     getInitialState: function() {
         return {
-            // Whether the context menu is being displayed.
-            menu: false,
+            // Whether the action bar is focused.
+            actionBarFocused: false,
             // Whether all read receipts are being displayed. If not, only display
             // a truncation of them.
             allReadAvatars: false,
@@ -178,6 +187,8 @@ module.exports = withMatrixClient(React.createClass({
             verified: null,
             // Whether onRequestKeysClick has been called since mounting.
             previouslyRequestedKeys: false,
+            // The Relations model from the JS SDK for reactions to `mxEvent`
+            reactions: this.getReactions(),
         };
     },
 
@@ -189,9 +200,12 @@ module.exports = withMatrixClient(React.createClass({
 
     componentDidMount: function() {
         this._suppressReadReceiptAnimation = false;
-        this.props.matrixClient.on("deviceVerificationChanged",
-                                 this.onDeviceVerificationChanged);
+        const client = this.props.matrixClient;
+        client.on("deviceVerificationChanged", this.onDeviceVerificationChanged);
         this.props.mxEvent.on("Event.decrypted", this._onDecrypted);
+        if (this.props.showReactions) {
+            this.props.mxEvent.on("Event.relationsCreated", this._onReactionsCreated);
+        }
     },
 
     componentWillReceiveProps: function(nextProps) {
@@ -214,13 +228,16 @@ module.exports = withMatrixClient(React.createClass({
         const client = this.props.matrixClient;
         client.removeListener("deviceVerificationChanged", this.onDeviceVerificationChanged);
         this.props.mxEvent.removeListener("Event.decrypted", this._onDecrypted);
+        if (this.props.showReactions) {
+            this.props.mxEvent.removeListener("Event.relationsCreated", this._onReactionsCreated);
+        }
     },
 
     /** called when the event is decrypted after we show it.
      */
     _onDecrypted: function() {
         // we need to re-verify the sending device.
-        // (we call onWidgetLoad in _verifyEvent to handle the case where decryption
+        // (we call onHeightChanged in _verifyEvent to handle the case where decryption
         // has caused a change in size of the event tile)
         this._verifyEvent(this.props.mxEvent);
         this.forceUpdate();
@@ -242,7 +259,7 @@ module.exports = withMatrixClient(React.createClass({
             verified: verified,
         }, () => {
             // Decryption may have caused a change in size
-            this.props.onWidgetLoad();
+            this.props.onHeightChanged();
         });
     },
 
@@ -304,38 +321,6 @@ module.exports = withMatrixClient(React.createClass({
         }
 
         return actions.tweaks.highlight;
-    },
-
-    onEditClicked: function(e) {
-        const MessageContextMenu = sdk.getComponent('context_menus.MessageContextMenu');
-        const buttonRect = e.target.getBoundingClientRect();
-
-        // The window X and Y offsets are to adjust position when zoomed in to page
-        const x = buttonRect.right + window.pageXOffset;
-        const y = (buttonRect.top + (buttonRect.height / 2) + window.pageYOffset) - 19;
-        const self = this;
-
-        const {tile, replyThread} = this.refs;
-
-        ContextualMenu.createMenu(MessageContextMenu, {
-            chevronOffset: 10,
-            mxEvent: this.props.mxEvent,
-            left: x,
-            top: y,
-            eventTileOps: tile && tile.getEventTileOps ? tile.getEventTileOps() : undefined,
-            collapseReplyThread: replyThread && replyThread.canCollapse() ? replyThread.collapse : undefined,
-            onFinished: function() {
-                self.setState({menu: false});
-            },
-        });
-        this.setState({menu: true});
-    },
-
-    onReplyClicked: function(e) {
-        dis.dispatch({
-            action: 'reply_to_event',
-            event: this.props.mxEvent,
-        });
     },
 
     toggleAllReadAvatars: function() {
@@ -420,7 +405,7 @@ module.exports = withMatrixClient(React.createClass({
         });
     },
 
-    onCryptoClicked: function(e) {
+    onCryptoClick: function(e) {
         const event = this.props.mxEvent;
 
         Modal.createTrackedDialogAsync('Encrypted Event Dialog', '',
@@ -456,7 +441,7 @@ module.exports = withMatrixClient(React.createClass({
 
     _renderE2EPadlock: function() {
         const ev = this.props.mxEvent;
-        const props = {onClick: this.onCryptoClicked};
+        const props = {onClick: this.onCryptoClick};
 
         // event could not be decrypted
         if (ev.getContent().msgtype === 'm.bad.encrypted') {
@@ -465,17 +450,21 @@ module.exports = withMatrixClient(React.createClass({
 
         // event is encrypted, display padlock corresponding to whether or not it is verified
         if (ev.isEncrypted()) {
-            return this.state.verified ? <E2ePadlockVerified {...props} /> : <E2ePadlockUnverified {...props} />;
+            if (this.state.verified) {
+                return; // no icon for verified
+            } else {
+                return (<E2ePadlockUnverified {...props} />);
+            }
         }
 
         if (this.props.matrixClient.isRoomEncrypted(ev.getRoomId())) {
             // else if room is encrypted
             // and event is being encrypted or is not_sent (Unknown Devices/Network Error)
             if (ev.status === EventStatus.ENCRYPTING) {
-                return <E2ePadlockEncrypting {...props} />;
+                return;
             }
             if (ev.status === EventStatus.NOT_SENT) {
-                return <E2ePadlockNotSent {...props} />;
+                return;
             }
             // if the event is not encrypted, but it's an e2e room, show the open padlock
             return <E2ePadlockUnencrypted {...props} />;
@@ -483,6 +472,41 @@ module.exports = withMatrixClient(React.createClass({
 
         // no padlock needed
         return null;
+    },
+
+    onActionBarFocusChange(focused) {
+        this.setState({
+            actionBarFocused: focused,
+        });
+    },
+
+    getTile() {
+        return this.refs.tile;
+    },
+
+    getReplyThread() {
+        return this.refs.replyThread;
+    },
+
+    getReactions() {
+        if (
+            !this.props.showReactions ||
+            !this.props.getRelationsForEvent
+        ) {
+            return null;
+        }
+        const eventId = this.props.mxEvent.getId();
+        return this.props.getRelationsForEvent(eventId, "m.annotation", "m.reaction");
+    },
+
+    _onReactionsCreated(relationType, eventType) {
+        if (relationType !== "m.annotation" || eventType !== "m.reaction") {
+            return;
+        }
+        this.props.mxEvent.removeListener("Event.relationsCreated", this._onReactionsCreated);
+        this.setState({
+            reactions: this.getReactions(),
+        });
     },
 
     render: function() {
@@ -497,11 +521,21 @@ module.exports = withMatrixClient(React.createClass({
         const eventType = this.props.mxEvent.getType();
 
         // Info messages are basically information about commands processed on a room
-        const isInfoMessage = (
+        let isInfoMessage = (
             eventType !== 'm.room.message' && eventType !== 'm.sticker' && eventType != 'm.room.create'
         );
 
-        const tileHandler = getHandlerTile(this.props.mxEvent);
+        let tileHandler = getHandlerTile(this.props.mxEvent);
+        // If we're showing hidden events in the timeline, we should use the
+        // source tile when there's no regular tile for an event and also for
+        // replace relations (which otherwise would display as a confusing
+        // duplicate of the thing they are replacing).
+        const useSource = !tileHandler || this.props.mxEvent.isRelation("m.replace");
+        if (useSource && SettingsStore.getValue("showHiddenEventsInTimeline")) {
+            tileHandler = "messages.ViewSourceEvent";
+            // Reuse info message avatar and sender profile styling
+            isInfoMessage = true;
+        }
         // This shouldn't happen: the caller should check we support this type
         // before trying to instantiate us
         if (!tileHandler) {
@@ -519,19 +553,21 @@ module.exports = withMatrixClient(React.createClass({
         const isRedacted = isMessageEvent(this.props.mxEvent) && this.props.isRedacted;
         const isEncryptionFailure = this.props.mxEvent.isDecryptionFailure();
 
+        const isEditing = !!this.props.editState;
         const classes = classNames({
             mx_EventTile: true,
+            mx_EventTile_isEditing: isEditing,
             mx_EventTile_info: isInfoMessage,
             mx_EventTile_12hr: this.props.isTwelveHour,
             mx_EventTile_encrypting: this.props.eventSendStatus === 'encrypting',
-            mx_EventTile_sending: isSending,
+            mx_EventTile_sending: !isEditing && isSending,
             mx_EventTile_notSent: this.props.eventSendStatus === 'not_sent',
             mx_EventTile_highlight: this.props.tileShape === 'notif' ? false : this.shouldHighlight(),
             mx_EventTile_selected: this.props.isSelectedEvent,
             mx_EventTile_continuation: this.props.tileShape ? '' : this.props.continuation,
             mx_EventTile_last: this.props.last,
             mx_EventTile_contextual: this.props.contextual,
-            menu: this.state.menu,
+            mx_EventTile_actionBarFocused: this.state.actionBarFocused,
             mx_EventTile_verified: this.state.verified === true,
             mx_EventTile_unverified: this.state.verified === false,
             mx_EventTile_bad: isEncryptionFailure,
@@ -539,7 +575,10 @@ module.exports = withMatrixClient(React.createClass({
             mx_EventTile_redacted: isRedacted,
         });
 
-        const permalink = makeEventPermalink(this.props.mxEvent.getRoomId(), this.props.mxEvent.getId());
+        let permalink = "#";
+        if (this.props.permalinkCreator) {
+            permalink = this.props.permalinkCreator.forEvent(this.props.mxEvent.getId());
+        }
 
         const readAvatars = this.getReadAvatars();
 
@@ -594,9 +633,15 @@ module.exports = withMatrixClient(React.createClass({
             }
         }
 
-        const editButton = (
-            <span className="mx_EventTile_editButton" title={_t("Options")} onClick={this.onEditClicked} />
-        );
+        const MessageActionBar = sdk.getComponent('messages.MessageActionBar');
+        const actionBar = !isEditing ? <MessageActionBar
+            mxEvent={this.props.mxEvent}
+            reactions={this.state.reactions}
+            permalinkCreator={this.props.permalinkCreator}
+            getTile={this.getTile}
+            getReplyThread={this.getReplyThread}
+            onFocusChange={this.onActionBarFocusChange}
+        /> : undefined;
 
         const replyButton = (
             <span className="mx_EventTile_replyButton" title={_t("Reply")} onClick={this.onReplyClicked} />
@@ -630,25 +675,33 @@ module.exports = withMatrixClient(React.createClass({
                 {'requestLink': (sub) => <a onClick={this.onRequestKeysClick}>{ sub }</a>},
             );
 
-        const ToolTipButton = sdk.getComponent('elements.ToolTipButton');
+        const TooltipButton = sdk.getComponent('elements.TooltipButton');
         const keyRequestInfo = isEncryptionFailure ?
             <div className="mx_EventTile_keyRequestInfo">
                 <span className="mx_EventTile_keyRequestInfo_text">
                     { keyRequestInfoContent }
                 </span>
-                <ToolTipButton helpText={keyRequestHelpText} />
+                <TooltipButton helpText={keyRequestHelpText} />
             </div> : null;
+
+        let reactionsRow;
+        if (!isRedacted) {
+            const ReactionsRow = sdk.getComponent('messages.ReactionsRow');
+            reactionsRow = <ReactionsRow
+                mxEvent={this.props.mxEvent}
+                reactions={this.state.reactions}
+            />;
+        }
 
         switch (this.props.tileShape) {
             case 'notif': {
-                const EmojiText = sdk.getComponent('elements.EmojiText');
                 const room = this.props.matrixClient.getRoom(this.props.mxEvent.getRoomId());
                 return (
                     <div className={classes}>
                         <div className="mx_EventTile_roomName">
-                            <EmojiText element="a" href={permalink} onClick={this.onPermalinkClicked}>
+                            <a href={permalink} onClick={this.onPermalinkClicked}>
                                 { room ? room.name : '' }
-                            </EmojiText>
+                            </a>
                         </div>
                         <div className="mx_EventTile_senderDetails">
                             { avatar }
@@ -663,7 +716,7 @@ module.exports = withMatrixClient(React.createClass({
                                            highlights={this.props.highlights}
                                            highlightLink={this.props.highlightLink}
                                            showUrlPreview={this.props.showUrlPreview}
-                                           onWidgetLoad={this.props.onWidgetLoad} />
+                                           onHeightChanged={this.props.onHeightChanged} />
                         </div>
                     </div>
                 );
@@ -678,7 +731,7 @@ module.exports = withMatrixClient(React.createClass({
                                            highlightLink={this.props.highlightLink}
                                            showUrlPreview={this.props.showUrlPreview}
                                            tileShape={this.props.tileShape}
-                                           onWidgetLoad={this.props.onWidgetLoad} />
+                                           onHeightChanged={this.props.onHeightChanged} />
                         </div>
                         <a
                             className="mx_EventTile_senderDetailsLink"
@@ -696,6 +749,15 @@ module.exports = withMatrixClient(React.createClass({
 
             case 'reply':
             case 'reply_preview': {
+                let thread;
+                if (this.props.tileShape === 'reply_preview') {
+                    thread = ReplyThread.makeThread(
+                        this.props.mxEvent,
+                        this.props.onHeightChanged,
+                        this.props.permalinkCreator,
+                        'replyThread',
+                    );
+                }
                 return (
                     <div className={classes}>
                         { avatar }
@@ -705,21 +767,24 @@ module.exports = withMatrixClient(React.createClass({
                                 { timestamp }
                             </a>
                             { this._renderE2EPadlock() }
-                            {
-                                this.props.tileShape === 'reply_preview'
-                                && ReplyThread.makeThread(this.props.mxEvent, this.props.onWidgetLoad, 'replyThread')
-                            }
+                            { thread }
                             <EventTileType ref="tile"
                                            mxEvent={this.props.mxEvent}
                                            highlights={this.props.highlights}
                                            highlightLink={this.props.highlightLink}
-                                           onWidgetLoad={this.props.onWidgetLoad}
+                                           onHeightChanged={this.props.onHeightChanged}
                                            showUrlPreview={false} />
                         </div>
                     </div>
                 );
             }
             default: {
+                const thread = ReplyThread.makeThread(
+                    this.props.mxEvent,
+                    this.props.onHeightChanged,
+                    this.props.permalinkCreator,
+                    'replyThread',
+                );
                 return (
                     <div className={classes}>
                         <div className="mx_EventTile_msgOption">
@@ -731,19 +796,21 @@ module.exports = withMatrixClient(React.createClass({
                                 { timestamp }
                             </a>
                             { this._renderE2EPadlock() }
-                            { ReplyThread.makeThread(this.props.mxEvent, this.props.onWidgetLoad, 'replyThread') }
+                            { thread }
                             <EventTileType ref="tile"
                                            mxEvent={this.props.mxEvent}
+                                           replacingEventId={this.props.replacingEventId}
+                                           editState={this.props.editState}
                                            highlights={this.props.highlights}
                                            highlightLink={this.props.highlightLink}
                                            showUrlPreview={this.props.showUrlPreview}
-                                           onWidgetLoad={this.props.onWidgetLoad} />
+                                           onHeightChanged={this.props.onHeightChanged} />
                             { keyRequestInfo }
-                            { editButton }
-                            { replyButton }
+                            { reactionsRow }
+                            { actionBar }
                         </div>
                         {
-                            // The avatar goes after the event tile as it's absolutly positioned to be over the
+                            // The avatar goes after the event tile as it's absolutely positioned to be over the
                             // event tile line, so needs to be later in the DOM so it appears on top (this avoids
                             // the need for further z-indexing chaos)
                         }
@@ -765,6 +832,9 @@ module.exports.haveTileForEvent = function(e) {
     // Only messages have a tile (black-rectangle) if redacted
     if (e.isRedacted() && !isMessageEvent(e)) return false;
 
+    // No tile for replacement events since they update the original tile
+    if (e.isRelation("m.replace")) return false;
+
     const handler = getHandlerTile(e);
     if (handler === undefined) return false;
     if (handler === 'messages.TextualEvent') {
@@ -778,49 +848,31 @@ module.exports.haveTileForEvent = function(e) {
 
 function E2ePadlockUndecryptable(props) {
     return (
-        <E2ePadlock alt={_t("Undecryptable")}
-            src="img/e2e-blocked.svg" width="12" height="12"
-            style={{ marginLeft: "-1px" }} {...props} />
-    );
-}
-
-function E2ePadlockEncrypting(props) {
-    return <E2ePadlock alt={_t("Encrypting")} src="img/e2e-encrypting.svg" width="10" height="12" {...props} />;
-}
-
-function E2ePadlockNotSent(props) {
-    return <E2ePadlock alt={_t("Encrypted, not sent")} src="img/e2e-not_sent.svg" width="10" height="12" {...props} />;
-}
-
-function E2ePadlockVerified(props) {
-    return (
-        <E2ePadlock alt={_t("Encrypted by a verified device")}
-            src="img/e2e-verified.svg" width="10" height="12"
-            {...props} />
+        <E2ePadlock title={_t("Undecryptable")} icon="undecryptable" {...props} />
     );
 }
 
 function E2ePadlockUnverified(props) {
     return (
-        <E2ePadlock alt={_t("Encrypted by an unverified device")}
-            src="img/e2e-warning.svg" width="15" height="12"
-            style={{ marginLeft: "-2px" }} {...props} />
+        <E2ePadlock title={_t("Encrypted by an unverified device")} icon="unverified" {...props} />
     );
 }
 
 function E2ePadlockUnencrypted(props) {
     return (
-        <E2ePadlock alt={_t("Unencrypted message")}
-            src="img/e2e-unencrypted.svg" width="12" height="12"
-            {...props} />
+        <E2ePadlock title={_t("Unencrypted message")} icon="unencrypted" {...props} />
     );
 }
 
 function E2ePadlock(props) {
     if (SettingsStore.getValue("alwaysShowEncryptionIcons")) {
-        return <img className="mx_EventTile_e2eIcon" {...props} />;
+        return (<div
+                    className={`mx_EventTile_e2eIcon mx_EventTile_e2eIcon_${props.icon}`}
+                    title={props.title} onClick={props.onClick} />);
     } else {
-        return <img className="mx_EventTile_e2eIcon mx_EventTile_e2eIcon_hidden" {...props} />;
+        return (<div
+                    className={`mx_EventTile_e2eIcon mx_EventTile_e2eIcon_hidden mx_EventTile_e2eIcon_${props.icon}`}
+                    onClick={props.onClick} />);
     }
 }
 

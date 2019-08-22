@@ -27,12 +27,14 @@ import UserActivity from './UserActivity';
 import Presence from './Presence';
 import dis from './dispatcher';
 import DMRoomMap from './utils/DMRoomMap';
-import RtsClient from './RtsClient';
 import Modal from './Modal';
 import sdk from './index';
 import ActiveWidgetStore from './stores/ActiveWidgetStore';
 import PlatformPeg from "./PlatformPeg";
-import {sendLoginRequest} from "./Login";
+import { sendLoginRequest } from "./Login";
+import * as StorageManager from './utils/StorageManager';
+import SettingsStore from "./settings/SettingsStore";
+import TypingStore from "./stores/TypingStore";
 
 /**
  * Called at startup, to attempt to build a logged-in Matrix session. It tries
@@ -64,6 +66,9 @@ import {sendLoginRequest} from "./Login";
  * @params {string} opts.guestIsUrl: homeserver URL. Only used if enableGuest is
  *     true; defines the IS to use.
  *
+ * @params {bool} opts.ignoreGuest: If the stored session is a guest account, ignore
+ *     it and don't load it.
+ *
  * @returns {Promise} a promise which resolves when the above process completes.
  *     Resolves to `true` if we ended up starting a session, or `false` if we
  *     failed.
@@ -94,7 +99,9 @@ export async function loadSession(opts) {
                 guest: true,
             }, true).then(() => true);
         }
-        const success = await _restoreFromLocalStorage();
+        const success = await _restoreFromLocalStorage({
+            ignoreGuest: Boolean(opts.ignoreGuest),
+        });
         if (success) {
             return true;
         }
@@ -103,11 +110,36 @@ export async function loadSession(opts) {
             return _registerAsGuest(guestHsUrl, guestIsUrl, defaultDeviceDisplayName);
         }
 
-        // fall back to login screen
+        // fall back to welcome screen
         return false;
     } catch (e) {
+        if (e instanceof AbortLoginAndRebuildStorage) {
+            // If we're aborting login because of a storage inconsistency, we don't
+            // need to show the general failure dialog. Instead, just go back to welcome.
+            return false;
+        }
         return _handleLoadSessionFailure(e);
     }
+}
+
+/**
+ * Gets the user ID of the persisted session, if one exists. This does not validate
+ * that the user's credentials still work, just that they exist and that a user ID
+ * is associated with them. The session is not loaded.
+ * @returns {String} The persisted session's owner, if an owner exists. Null otherwise.
+ */
+export function getStoredSessionOwner() {
+    const {hsUrl, userId, accessToken} = getLocalStorageSessionVars();
+    return hsUrl && userId && accessToken ? userId : null;
+}
+
+/**
+ * @returns {bool} True if the stored session is for a guest user or false if it is
+ *     for a real user. If there is no stored session, return null.
+ */
+export function getStoredSessionIsGuest() {
+    const sessVars = getLocalStorageSessionVars();
+    return sessVars.hsUrl && sessVars.userId && sessVars.accessToken ? sessVars.isGuest : null;
 }
 
 /**
@@ -187,9 +219,6 @@ export function handleInvalidStoreError(e) {
 function _registerAsGuest(hsUrl, isUrl, defaultDeviceDisplayName) {
     console.log(`Doing guest login on ${hsUrl}`);
 
-    // TODO: we should probably de-duplicate this and Login.loginAsGuest.
-    // Not really sure where the right home for it is.
-
     // create a temporary MatrixClient to do the login
     const client = Matrix.createClient({
         baseUrl: hsUrl,
@@ -210,25 +239,17 @@ function _registerAsGuest(hsUrl, isUrl, defaultDeviceDisplayName) {
             guest: true,
         }, true).then(() => true);
     }, (err) => {
-        console.error("Failed to register as guest: " + err + " " + err.data);
+        console.error("Failed to register as guest", err);
         return false;
     });
 }
 
-// returns a promise which resolves to true if a session is found in
-// localstorage
-//
-// N.B. Lifecycle.js should not maintain any further localStorage state, we
-//      are moving towards using SessionStore to keep track of state related
-//      to the current session (which is typically backed by localStorage).
-//
-//      The plan is to gradually move the localStorage access done here into
-//      SessionStore to avoid bugs where the view becomes out-of-sync with
-//      localStorage (e.g. teamToken, isGuest etc.)
-async function _restoreFromLocalStorage() {
-    if (!localStorage) {
-        return false;
-    }
+/**
+ * Retrieves information about the stored session in localstorage. The session
+ * may not be valid, as it is not tested for consistency here.
+ * @returns {Object} Information about the session - see implementation for variables.
+ */
+export function getLocalStorageSessionVars() {
     const hsUrl = localStorage.getItem("mx_hs_url");
     const isUrl = localStorage.getItem("mx_is_url") || 'https://matrix.org';
     const accessToken = localStorage.getItem("mx_access_token");
@@ -243,7 +264,34 @@ async function _restoreFromLocalStorage() {
         isGuest = localStorage.getItem("matrix-is-guest") === "true";
     }
 
+    return {hsUrl, isUrl, accessToken, userId, deviceId, isGuest};
+}
+
+// returns a promise which resolves to true if a session is found in
+// localstorage
+//
+// N.B. Lifecycle.js should not maintain any further localStorage state, we
+//      are moving towards using SessionStore to keep track of state related
+//      to the current session (which is typically backed by localStorage).
+//
+//      The plan is to gradually move the localStorage access done here into
+//      SessionStore to avoid bugs where the view becomes out-of-sync with
+//      localStorage (e.g. isGuest etc.)
+async function _restoreFromLocalStorage(opts) {
+    const ignoreGuest = opts.ignoreGuest;
+
+    if (!localStorage) {
+        return false;
+    }
+
+    const {hsUrl, isUrl, accessToken, userId, deviceId, isGuest} = getLocalStorageSessionVars();
+
     if (accessToken && userId && hsUrl) {
+        if (ignoreGuest && isGuest) {
+            console.log("Ignoring stored guest account: " + userId);
+            return false;
+        }
+
         console.log(`Restoring session for ${userId}`);
         await _doSetLoggedIn({
             userId: userId,
@@ -261,7 +309,7 @@ async function _restoreFromLocalStorage() {
 }
 
 function _handleLoadSessionFailure(e) {
-    console.log("Unable to load session", e);
+    console.error("Unable to load session", e);
 
     const def = Promise.defer();
     const SessionRestoreErrorDialog =
@@ -286,15 +334,6 @@ function _handleLoadSessionFailure(e) {
     });
 }
 
-let rtsClient = null;
-export function initRtsClient(url) {
-    if (url) {
-        rtsClient = new RtsClient(url);
-    } else {
-        rtsClient = null;
-    }
-}
-
 /**
  * Transitions to a logged-in state using the given credentials.
  *
@@ -314,6 +353,37 @@ export function setLoggedIn(credentials) {
 }
 
 /**
+ * Hydrates an existing session by using the credentials provided. This will
+ * not clear any local storage, unlike setLoggedIn().
+ *
+ * Stops the existing Matrix client (without clearing its data) and starts a
+ * new one in its place. This additionally starts all other react-sdk services
+ * which use the new Matrix client.
+ *
+ * If the credentials belong to a different user from the session already stored,
+ * the old session will be cleared automatically.
+ *
+ * @param {MatrixClientCreds} credentials The credentials to use
+ *
+ * @returns {Promise} promise which resolves to the new MatrixClient once it has been started
+ */
+export function hydrateSession(credentials) {
+    const oldUserId = MatrixClientPeg.get().getUserId();
+    const oldDeviceId = MatrixClientPeg.get().getDeviceId();
+
+    stopMatrixClient(); // unsets MatrixClientPeg.get()
+    localStorage.removeItem("mx_soft_logout");
+    _isLoggingOut = false;
+
+    const overwrite = credentials.userId !== oldUserId || credentials.deviceId !== oldDeviceId;
+    if (overwrite) {
+        console.warn("Clearing all data: Old session belongs to a different user/device");
+    }
+
+    return _doSetLoggedIn(credentials, overwrite);
+}
+
+/**
  * fires on_logging_in, optionally clears localstorage, persists new credentials
  * to localstorage, starts the new client.
  *
@@ -325,15 +395,18 @@ export function setLoggedIn(credentials) {
 async function _doSetLoggedIn(credentials, clearStorage) {
     credentials.guest = Boolean(credentials.guest);
 
+    const softLogout = isSoftLogout();
+
     console.log(
         "setLoggedIn: mxid: " + credentials.userId +
         " deviceId: " + credentials.deviceId +
         " guest: " + credentials.guest +
-        " hs: " + credentials.homeserverUrl,
+        " hs: " + credentials.homeserverUrl +
+        " softLogout: " + softLogout,
     );
 
     // This is dispatched to indicate that the user is still in the process of logging in
-    // because `teamPromise` may take some time to resolve, breaking the assumption that
+    // because async code may take some time to resolve, breaking the assumption that
     // `setLoggedIn` takes an "instant" to complete, and dispatch `on_logged_in` a few ms
     // later than MatrixChat might assume.
     //
@@ -345,11 +418,23 @@ async function _doSetLoggedIn(credentials, clearStorage) {
         await _clearStorage();
     }
 
+    const results = await StorageManager.checkConsistency();
+    // If there's an inconsistency between account data in local storage and the
+    // crypto store, we'll be generally confused when handling encrypted data.
+    // Show a modal recommending a full reset of storage.
+    if (results.dataInLocalStorage && results.cryptoInited && !results.dataInCryptoStore) {
+        const signOut = await _showStorageEvictedDialog();
+        if (signOut) {
+            await _clearStorage();
+            // This error feels a bit clunky, but we want to make sure we don't go any
+            // further and instead head back to sign in.
+            throw new AbortLoginAndRebuildStorage(
+                "Aborting login in progress because of storage inconsistency",
+            );
+        }
+    }
+
     Analytics.setLoggedIn(credentials.guest, credentials.homeserverUrl, credentials.identityServerUrl);
-
-    // Resolves by default
-    let teamPromise = Promise.resolve(null);
-
 
     if (localStorage) {
         try {
@@ -367,31 +452,30 @@ async function _doSetLoggedIn(credentials, clearStorage) {
         } catch (e) {
             console.warn("Error using local storage: can't persist session!", e);
         }
-
-        if (rtsClient && !credentials.guest) {
-            teamPromise = rtsClient.login(credentials.userId).then((body) => {
-                if (body.team_token) {
-                    localStorage.setItem("mx_team_token", body.team_token);
-                }
-                return body.team_token;
-            }, (err) => {
-                console.warn(`Failed to get team token on login: ${err}` );
-                return null;
-            });
-        }
     } else {
         console.warn("No local storage available: can't persist session!");
     }
 
     MatrixClientPeg.replaceUsingCreds(credentials);
 
-    teamPromise.then((teamToken) => {
-        dis.dispatch({action: 'on_logged_in', teamToken: teamToken});
-    });
+    dis.dispatch({ action: 'on_logged_in' });
 
-    await startMatrixClient();
+    await startMatrixClient(/*startSyncing=*/!softLogout);
     return MatrixClientPeg.get();
 }
+
+function _showStorageEvictedDialog() {
+    const StorageEvictedDialog = sdk.getComponent('views.dialogs.StorageEvictedDialog');
+    return new Promise(resolve => {
+        Modal.createTrackedDialog('Storage evicted', '', StorageEvictedDialog, {
+            onFinished: resolve,
+        });
+    });
+}
+
+// Note: Babel 6 requires the `transform-builtin-extend` plugin for this to satisfy
+// `instanceof`. Babel 7 supports this natively in their class handling.
+class AbortLoginAndRebuildStorage extends Error { }
 
 function _persistCredentialsToLocalStorage(credentials) {
     localStorage.setItem("mx_hs_url", credentials.homeserverUrl);
@@ -449,6 +533,25 @@ export function logout() {
     ).done();
 }
 
+export function softLogout() {
+    if (!MatrixClientPeg.get()) return;
+
+    // Track that we've detected and trapped a soft logout. This helps prevent other
+    // parts of the app from starting if there's no point (ie: don't sync if we've
+    // been soft logged out, despite having credentials and data for a MatrixClient).
+    localStorage.setItem("mx_soft_logout", "true");
+
+    _isLoggingOut = true; // to avoid repeated flags
+    stopMatrixClient(/*unsetClient=*/false);
+    dis.dispatch({action: 'on_client_not_viable'}); // generic version of on_logged_out
+
+    // DO NOT CALL LOGOUT. A soft logout preserves data, logout does not.
+}
+
+export function isSoftLogout() {
+    return localStorage.getItem("mx_soft_logout") === "true";
+}
+
 export function isLoggingOut() {
     return _isLoggingOut;
 }
@@ -456,8 +559,10 @@ export function isLoggingOut() {
 /**
  * Starts the matrix client and all other react-sdk services that
  * listen for events while a session is logged in.
+ * @param {boolean} startSyncing True (default) to actually start
+ * syncing the client.
  */
-async function startMatrixClient() {
+async function startMatrixClient(startSyncing=true) {
     console.log(`Lifecycle: Starting MatrixClient`);
 
     // dispatch this before starting the matrix client: it's used
@@ -467,16 +572,28 @@ async function startMatrixClient() {
     dis.dispatch({action: 'will_start_client'}, true);
 
     Notifier.start();
-    UserActivity.start();
-    Presence.start();
+    UserActivity.sharedInstance().start();
+    TypingStore.sharedInstance().reset(); // just in case
+    if (!SettingsStore.getValue("lowBandwidth")) {
+        Presence.start();
+    }
     DMRoomMap.makeShared().start();
     ActiveWidgetStore.start();
 
-    await MatrixClientPeg.start();
+    if (startSyncing) {
+        await MatrixClientPeg.start();
+    } else {
+        console.warn("Caller requested only auxiliary services be started");
+        await MatrixClientPeg.assign();
+    }
 
     // dispatch that we finished starting up to wire up any other bits
     // of the matrix client that cannot be set prior to starting up.
     dis.dispatch({action: 'client_started'});
+
+    if (isSoftLogout()) {
+        softLogout();
+    }
 }
 
 /*
@@ -497,16 +614,7 @@ function _clearStorage() {
     Analytics.logout();
 
     if (window.localStorage) {
-        const hsUrl = window.localStorage.getItem("mx_hs_url");
-        const isUrl = window.localStorage.getItem("mx_is_url");
         window.localStorage.clear();
-
-        // preserve our HS & IS URLs for convenience
-        // N.B. we cache them in hsUrl/isUrl and can't really inline them
-        // as getCurrentHsUrl() may call through to localStorage.
-        // NB. We do clear the device ID (as well as all the settings)
-        if (hsUrl) window.localStorage.setItem("mx_hs_url", hsUrl);
-        if (isUrl) window.localStorage.setItem("mx_is_url", isUrl);
     }
 
     // create a temporary client to clear out the persistent stores.
@@ -519,10 +627,13 @@ function _clearStorage() {
 
 /**
  * Stop all the background processes related to the current client.
+ * @param {boolean} unsetClient True (default) to abandon the client
+ * on MatrixClientPeg after stopping.
  */
-export function stopMatrixClient() {
+export function stopMatrixClient(unsetClient=true) {
     Notifier.stop();
-    UserActivity.stop();
+    UserActivity.sharedInstance().stop();
+    TypingStore.sharedInstance().reset();
     Presence.stop();
     ActiveWidgetStore.stop();
     if (DMRoomMap.shared()) DMRoomMap.shared().stop();
@@ -530,6 +641,9 @@ export function stopMatrixClient() {
     if (cli) {
         cli.stopClient();
         cli.removeAllListeners();
-        MatrixClientPeg.unset();
+
+        if (unsetClient) {
+            MatrixClientPeg.unset();
+        }
     }
 }

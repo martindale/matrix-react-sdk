@@ -18,34 +18,51 @@ import SettingsStore from "../../../src/settings/SettingsStore";
 
 const React = require('react');
 const ReactDOM = require("react-dom");
+import PropTypes from "prop-types";
 const TestUtils = require('react-addons-test-utils');
 const expect = require('expect');
 import sinon from 'sinon';
+import { EventEmitter } from "events";
 
 const sdk = require('matrix-react-sdk');
 
 const MessagePanel = sdk.getComponent('structures.MessagePanel');
 import MatrixClientPeg from '../../../src/MatrixClientPeg';
+import Matrix from 'matrix-js-sdk';
 
 const test_utils = require('test-utils');
 const mockclock = require('mock-clock');
 
+import Velocity from 'velocity-animate';
+
 let client;
+const room = new Matrix.Room();
 
 // wrap MessagePanel with a component which provides the MatrixClient in the context.
 const WrappedMessagePanel = React.createClass({
     childContextTypes: {
-        matrixClient: React.PropTypes.object,
+        matrixClient: PropTypes.object,
+        room: PropTypes.object,
     },
 
     getChildContext: function() {
         return {
             matrixClient: client,
+            room: {
+                canReact: true,
+                canReply: true,
+            },
+        };
+    },
+
+    getInitialState: function() {
+        return {
+            resizeNotifier: new EventEmitter(),
         };
     },
 
     render: function() {
-        return <MessagePanel {...this.props} />;
+        return <MessagePanel room={room} {...this.props} resizeNotifier={this.state.resizeNotifier} />;
     },
 });
 
@@ -63,9 +80,17 @@ describe('MessagePanel', function() {
 
         // HACK: We assume all settings want to be disabled
         SettingsStore.getValue = sinon.stub().returns(false);
+
+        // This option clobbers the duration of all animations to be 1ms
+        // which makes unit testing a lot simpler (the animation doesn't
+        // complete without this even if we mock the clock and tick it
+        // what should be the correct amount of time).
+        Velocity.mock = true;
     });
 
     afterEach(function() {
+        delete Velocity.mock;
+
         clock.uninstall();
         sandbox.restore();
     });

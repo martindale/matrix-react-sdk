@@ -44,8 +44,6 @@ const INITIAL_STATE = {
     forwardingEvent: null,
 
     quotingEvent: null,
-
-    isEditingSettings: false,
 };
 
 /**
@@ -105,6 +103,7 @@ class RoomViewStore extends Store {
             case 'join_room_error':
                 this._joinRoomError(payload);
                 break;
+            case 'on_client_not_viable':
             case 'on_logged_out':
                 this.reset();
                 break;
@@ -118,16 +117,13 @@ class RoomViewStore extends Store {
                     replyingToEvent: payload.event,
                 });
                 break;
-            case 'open_room_settings':
-                this._setState({
-                    isEditingSettings: true,
-                });
+            case 'open_room_settings': {
+                const RoomSettingsDialog = sdk.getComponent("dialogs.RoomSettingsDialog");
+                Modal.createTrackedDialog('Room settings', '', RoomSettingsDialog, {
+                    roomId: payload.room_id || this._state.roomId,
+                }, /*className=*/null, /*isPriority=*/false, /*isStatic=*/true);
                 break;
-            case 'close_settings':
-                this._setState({
-                    isEditingSettings: false,
-                });
-                break;
+            }
         }
     }
 
@@ -324,10 +320,6 @@ class RoomViewStore extends Store {
     // The mxEvent if one is currently being replied to/quoted
     getQuotingEvent() {
         return this._state.replyingToEvent;
-    }
-
-    isEditingSettings() {
-        return this._state.isEditingSettings;
     }
 
     shouldPeek() {

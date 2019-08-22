@@ -50,7 +50,7 @@ limitations under the License.
     max-height: 100%;
     /* object-fit hack needed for Chrome due to Chrome not re-laying-out until you refresh */
     object-fit: contain;
-    /* background-image: url('../../img/trans.png'); */
+    /* background-image: url('$(res)/img/trans.png'); */
     pointer-events: all;
 }
 
@@ -77,9 +77,27 @@ limitations under the License.
 
 .mx_ImageView_cancel {
     position: absolute;
-    top: 0px;
+    // hack for mx_Dialog having a top padding of 40px
+    top: 40px;
     right: 0px;
-    padding: 35px;
+    padding-top: 35px;
+    padding-right: 35px;
+    cursor: pointer;
+}
+
+.mx_ImageView_rotateClockwise {
+    position: absolute;
+    top: 40px;
+    right: 70px;
+    padding-top: 35px;
+    cursor: pointer;
+}
+
+.mx_ImageView_rotateCounterClockwise {
+    position: absolute;
+    top: 40px;
+    right: 105px;
+    padding-top: 35px;
     cursor: pointer;
 }
 
@@ -110,8 +128,8 @@ limitations under the License.
 }
 
 .mx_ImageView_link {
-    color: $lightbox-fg-color ! important;
-    text-decoration: none ! important;
+    color: $lightbox-fg-color !important;
+    text-decoration: none !important;
 }
 
 .mx_ImageView_button {

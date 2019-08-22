@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Michael Telatynski <7t3chguy@gmail.com>
+Copyright 2017, 2019 Michael Telatynski <7t3chguy@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,19 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-'use strict';
-
 import React from 'react';
+import PropTypes from 'prop-types';
 import { _t } from '../../../languageHandler';
 import PlatformPeg from '../../../PlatformPeg';
 import AccessibleButton from '../../../components/views/elements/AccessibleButton';
 
 export default React.createClass({
     propTypes: {
-        status: React.PropTypes.string.isRequired,
+        status: PropTypes.string.isRequired,
         // Currently for error detail but will be usable for download progress
         // once that is a thing that squirrel passes through electron.
-        detail: React.PropTypes.string,
+        detail: PropTypes.string,
     },
 
     getDefaultProps: function() {
@@ -71,9 +70,9 @@ export default React.createClass({
 
         let image;
         if (doneStatuses.includes(this.props.status)) {
-            image = <img className="mx_MatrixToolbar_warning" src="img/warning.svg" width="24" height="23" alt="" />;
+            image = <img className="mx_MatrixToolbar_warning" src={require("../../../../res/img/warning.svg")} width="24" height="23" alt="" />;
         } else {
-            image = <img className="mx_MatrixToolbar_warning" src="img/spinner.gif" width="24" height="23" alt="" />;
+            image = <img className="mx_MatrixToolbar_warning" src={require("../../../../res/img/spinner.gif")} width="24" height="23" alt="" />;
         }
 
         return (
@@ -83,7 +82,7 @@ export default React.createClass({
                     {message}
                 </div>
                 <AccessibleButton className="mx_MatrixToolbar_close" onClick={this.hideToolbar}>
-                    <img src="img/cancel.svg" width="18" height="18" alt={_t('Close')} />
+                    <img src={require("../../../../res/img/cancel.svg")} width="18" height="18" alt={_t('Close')} />
                 </AccessibleButton>
             </div>
         );

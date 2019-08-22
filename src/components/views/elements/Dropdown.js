@@ -1,5 +1,6 @@
 /*
 Copyright 2017 Vector Creations Ltd
+Copyright 2019 Michael Telatynski <7t3chguy@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,7 +49,7 @@ class MenuOption extends React.Component {
         });
 
         return <div className={optClasses}
-            onClick={this._onClick} onKeyPress={this._onKeyPress}
+            onClick={this._onClick}
             onMouseEnter={this._onMouseEnter}
         >
             { this.props.children }
@@ -58,7 +59,7 @@ class MenuOption extends React.Component {
 
 MenuOption.propTypes = {
     children: PropTypes.oneOfType([
-      PropTypes.arrayOf(React.PropTypes.node),
+      PropTypes.arrayOf(PropTypes.node),
       PropTypes.node,
     ]),
     highlighted: PropTypes.bool,
@@ -310,7 +311,7 @@ export default class Dropdown extends React.Component {
         // Note the menu sits inside the AccessibleButton div so it's anchored
         // to the input, but overflows below it. The root contains both.
         return <div className={classnames(dropdownClasses)} ref={this._collectRoot}>
-            <AccessibleButton className="mx_Dropdown_input" onClick={this._onInputClick}>
+            <AccessibleButton className="mx_Dropdown_input mx_no_textinput" onClick={this._onInputClick}>
                 { currentValue }
                 <span className="mx_Dropdown_arrow"></span>
                 { menu }

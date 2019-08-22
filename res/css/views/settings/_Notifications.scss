@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-.mx_UserNotifSettings_tableRow
-{
+.mx_UserNotifSettings_tableRow {
     display: table-row;
 }
 
@@ -26,8 +25,7 @@ limitations under the License.
     width: 16px;
 }
 
-.mx_UserNotifSettings_labelCell
-{
+.mx_UserNotifSettings_labelCell {
     padding-bottom: 8px;
     width: 400px;
     display: table-cell;
@@ -44,12 +42,10 @@ limitations under the License.
 
 .mx_UserNotifSettings_pushRulesTable thead {
     font-weight: bold;
-    font-size: 15px;
 }
 
 .mx_UserNotifSettings_pushRulesTable tbody th {
     font-weight: 400;
-    font-size: 15px;
 }
 
 .mx_UserNotifSettings_pushRulesTable tbody th:first-child {
@@ -61,10 +57,38 @@ limitations under the License.
     color: $accent-color;
 }
 
-.mx_UserSettings_devicesTable td {
+.mx_UserNotifSettings_devicesTable td {
     padding-left: 20px;
     padding-right: 20px;
 }
-.mx_UserSettings_devicesTable_nodevices {
-    font-style: italic;
+
+.mx_UserNotifSettings_notifTable {
+    display: table;
+}
+
+.mx_UserNotifSettings_notifTable .mx_Spinner {
+    position: absolute;
+}
+
+.mx_NotificationSound_soundUpload {
+    display: none;
+}
+
+.mx_NotificationSound_browse {
+    color: $accent-color;
+    border: 1px solid $accent-color;
+    background-color: transparent;
+}
+
+.mx_NotificationSound_save {
+    margin-left: 5px;
+    color: white;
+    background-color: $accent-color;
+}
+
+.mx_NotificationSound_resetSound {
+    margin-top: 5px;
+    color: white;
+    border: $warning-color;
+    background-color: $warning-color;
 }

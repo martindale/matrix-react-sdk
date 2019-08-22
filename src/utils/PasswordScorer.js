@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Zxcvbn from 'zxcvbn';
+import zxcvbn from 'zxcvbn';
 
 import MatrixClientPeg from '../MatrixClientPeg';
 import { _t, _td } from '../languageHandler';
@@ -52,22 +52,29 @@ _td("This is similar to a commonly used password");
 _td("A word by itself is easy to guess");
 _td("Names and surnames by themselves are easy to guess");
 _td("Common names and surnames are easy to guess");
+_td("Straight rows of keys are easy to guess");
+_td("Short keyboard patterns are easy to guess");
 
 /**
  * Wrapper around zxcvbn password strength estimation
  * Include this only from async components: it pulls in zxcvbn
  * (obviously) which is large.
+ *
+ * @param {string} password Password to score
+ * @returns {object} Score result with `score` and `feedback` properties
  */
 export function scorePassword(password) {
     if (password.length === 0) return null;
 
     const userInputs = ZXCVBN_USER_INPUTS.slice();
-    userInputs.push(MatrixClientPeg.get().getUserIdLocalpart());
+    if (MatrixClientPeg.get()) {
+        userInputs.push(MatrixClientPeg.get().getUserIdLocalpart());
+    }
 
-    let zxcvbnResult = Zxcvbn(password, userInputs);
+    let zxcvbnResult = zxcvbn(password, userInputs);
     // Work around https://github.com/dropbox/zxcvbn/issues/216
     if (password.includes(' ')) {
-        const resultNoSpaces = Zxcvbn(password.replace(/ /g, ''), userInputs);
+        const resultNoSpaces = zxcvbn(password.replace(/ /g, ''), userInputs);
         if (resultNoSpaces.score < zxcvbnResult.score) zxcvbnResult = resultNoSpaces;
     }
 

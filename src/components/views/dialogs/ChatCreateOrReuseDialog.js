@@ -52,7 +52,12 @@ export default class ChatCreateOrReuseDialog extends React.Component {
         const tiles = [];
         for (const roomId of dmRooms) {
             const room = client.getRoom(roomId);
-            if (room) {
+            if (room && room.getMyMembership() === "join") {
+                const member = room.getMember(this.props.userId);
+                if (!member || member.membership !== "join") {
+                    continue;
+                }
+
                 const isInvite = room.getMyMembership() === "invite";
                 const highlight = room.getUnreadNotificationCount('highlight') > 0 || isInvite;
                 tiles.push(
@@ -127,7 +132,7 @@ export default class ChatCreateOrReuseDialog extends React.Component {
                 onClick={this.props.onNewDMClick}
             >
                 <div className="mx_RoomTile_avatar">
-                    <img src="img/create-big.svg" width="26" height="26" />
+                    <img src={require("../../../../res/img/create-big.svg")} width="26" height="26" />
                 </div>
                 <div className={labelClasses}><i>{ _t("Start new chat") }</i></div>
             </AccessibleButton>;

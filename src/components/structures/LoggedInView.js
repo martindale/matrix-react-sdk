@@ -22,23 +22,32 @@ import PropTypes from 'prop-types';
 import { DragDropContext } from 'react-beautiful-dnd';
 
 import { KeyCode, isOnlyCtrlOrCmdKeyEvent } from '../../Keyboard';
-import Notifier from '../../Notifier';
 import PageTypes from '../../PageTypes';
 import CallMediaHandler from '../../CallMediaHandler';
+import { fixupColorFonts } from '../../utils/FontManager';
 import sdk from '../../index';
 import dis from '../../dispatcher';
 import sessionStore from '../../stores/SessionStore';
 import MatrixClientPeg from '../../MatrixClientPeg';
 import SettingsStore from "../../settings/SettingsStore";
 import RoomListStore from "../../stores/RoomListStore";
+import { getHomePageUrl } from '../../utils/pages';
 
 import TagOrderActions from '../../actions/TagOrderActions';
 import RoomListActions from '../../actions/RoomListActions';
-
+import ResizeHandle from '../views/elements/ResizeHandle';
+import {Resizer, CollapseDistributor} from '../../resizer';
 // We need to fetch each pinned message individually (if we don't already have it)
 // so each pinned message may trigger a request. Limit the number per room for sanity.
 // NB. this is just for server notices rather than pinned messages in general.
 const MAX_PINNED_NOTICES_PER_ROOM = 2;
+
+function canElementReceiveInput(el) {
+    return el.tagName === "INPUT" ||
+        el.tagName === "TEXTAREA" ||
+        el.tagName === "SELECT" ||
+        !!el.getAttribute("contenteditable");
+}
 
 /**
  * This is what our MatrixChat shows when we are logged in. The precise view is
@@ -56,13 +65,11 @@ const LoggedInView = React.createClass({
         matrixClient: PropTypes.instanceOf(Matrix.MatrixClient).isRequired,
         page_type: PropTypes.string.isRequired,
         onRoomCreated: PropTypes.func,
-        onUserSettingsClose: PropTypes.func,
 
         // Called with the credentials of a registered user (if they were a ROU that
         // transitioned to PWLU)
         onRegistered: PropTypes.func,
-
-        teamToken: PropTypes.string,
+        collapsedRhs: PropTypes.bool,
 
         // Used by the RoomView to handle joining rooms
         viaServers: PropTypes.arrayOf(PropTypes.string),
@@ -94,13 +101,19 @@ const LoggedInView = React.createClass({
         };
     },
 
+    componentDidMount: function() {
+        this.resizer = this._createResizer();
+        this.resizer.attach();
+        this._loadResizerPreferences();
+    },
+
     componentWillMount: function() {
         // stash the MatrixClient in case we log out before we are unmounted
         this._matrixClient = this.props.matrixClient;
 
         CallMediaHandler.loadDevices();
 
-        document.addEventListener('keydown', this._onKeyDown);
+        document.addEventListener('keydown', this._onNativeKeyDown, false);
 
         this._sessionStore = sessionStore;
         this._sessionStoreToken = this._sessionStore.addListener(
@@ -113,16 +126,31 @@ const LoggedInView = React.createClass({
         this._matrixClient.on("accountData", this.onAccountData);
         this._matrixClient.on("sync", this.onSync);
         this._matrixClient.on("RoomState.events", this.onRoomStateEvents);
+
+        fixupColorFonts();
+    },
+
+    componentDidUpdate(prevProps) {
+        // attempt to guess when a banner was opened or closed
+        if (
+            (prevProps.showCookieBar !== this.props.showCookieBar) ||
+            (prevProps.hasNewVersion !== this.props.hasNewVersion) ||
+            (prevProps.userHasGeneratedPassword !== this.props.userHasGeneratedPassword) ||
+            (prevProps.showNotifierToolbar !== this.props.showNotifierToolbar)
+        ) {
+            this.props.resizeNotifier.notifyBannersChanged();
+        }
     },
 
     componentWillUnmount: function() {
-        document.removeEventListener('keydown', this._onKeyDown);
+        document.removeEventListener('keydown', this._onNativeKeyDown, false);
         this._matrixClient.removeListener("accountData", this.onAccountData);
         this._matrixClient.removeListener("sync", this.onSync);
         this._matrixClient.removeListener("RoomState.events", this.onRoomStateEvents);
         if (this._sessionStoreToken) {
             this._sessionStoreToken.remove();
         }
+        this.resizer.detach();
     },
 
     // Child components assume that the client peg will not be null, so give them some
@@ -148,6 +176,45 @@ const LoggedInView = React.createClass({
         });
     },
 
+    _createResizer() {
+        const classNames = {
+            handle: "mx_ResizeHandle",
+            vertical: "mx_ResizeHandle_vertical",
+            reverse: "mx_ResizeHandle_reverse",
+        };
+        const collapseConfig = {
+            toggleSize: 260 - 50,
+            onCollapsed: (collapsed) => {
+                if (collapsed) {
+                    dis.dispatch({action: "hide_left_panel"}, true);
+                    window.localStorage.setItem("mx_lhs_size", '0');
+                } else {
+                    dis.dispatch({action: "show_left_panel"}, true);
+                }
+            },
+            onResized: (size) => {
+                window.localStorage.setItem("mx_lhs_size", '' + size);
+                this.props.resizeNotifier.notifyLeftHandleResized();
+            },
+        };
+        const resizer = new Resizer(
+            this.resizeContainer,
+            CollapseDistributor,
+            collapseConfig);
+        resizer.setClassNames(classNames);
+        return resizer;
+    },
+
+    _loadResizerPreferences() {
+        let lhsSize = window.localStorage.getItem("mx_lhs_size");
+        if (lhsSize !== null) {
+            lhsSize = parseInt(lhsSize, 10);
+        } else {
+            lhsSize = 350;
+        }
+        this.resizer.forHandleAt(0).resize(lhsSize);
+    },
+
     onAccountData: function(event) {
         if (event.getType() === "im.vector.web.settings") {
             this.setState({
@@ -160,7 +227,11 @@ const LoggedInView = React.createClass({
     },
 
     onSync: function(syncState, oldSyncState, data) {
-        const oldErrCode = this.state.syncErrorData && this.state.syncErrorData.error && this.state.syncErrorData.error.errcode;
+        const oldErrCode = (
+            this.state.syncErrorData &&
+            this.state.syncErrorData.error &&
+            this.state.syncErrorData.error.errcode
+        );
         const newErrCode = data && data.error && data.error.errcode;
         if (syncState === oldSyncState && oldErrCode === newErrCode) return;
 
@@ -208,6 +279,58 @@ const LoggedInView = React.createClass({
         });
     },
 
+    _onPaste: function(ev) {
+        let canReceiveInput = false;
+        let element = ev.target;
+        // test for all parents because the target can be a child of a contenteditable element
+        while (!canReceiveInput && element) {
+            canReceiveInput = canElementReceiveInput(element);
+            element = element.parentElement;
+        }
+        if (!canReceiveInput) {
+            // refocusing during a paste event will make the
+            // paste end up in the newly focused element,
+            // so dispatch synchronously before paste happens
+            dis.dispatch({action: 'focus_composer'}, true);
+        }
+    },
+
+    /*
+    SOME HACKERY BELOW:
+    React optimizes event handlers, by always attaching only 1 handler to the document for a given type.
+    It then internally determines the order in which React event handlers should be called,
+    emulating the capture and bubbling phases the DOM also has.
+
+    But, as the native handler for React is always attached on the document,
+    it will always run last for bubbling (first for capturing) handlers,
+    and thus React basically has its own event phases, and will always run
+    after (before for capturing) any native other event handlers (as they tend to be attached last).
+
+    So ideally one wouldn't mix React and native event handlers to have bubbling working as expected,
+    but we do need a native event handler here on the document,
+    to get keydown events when there is no focused element (target=body).
+
+    We also do need bubbling here to give child components a chance to call `stopPropagation()`,
+    for keydown events it can handle itself, and shouldn't be redirected to the composer.
+
+    So we listen with React on this component to get any events on focused elements, and get bubbling working as expected.
+    We also listen with a native listener on the document to get keydown events when no element is focused.
+    Bubbling is irrelevant here as the target is the body element.
+    */
+    _onReactKeyDown: function(ev) {
+        // events caught while bubbling up on the root element
+        // of this component, so something must be focused.
+        this._onKeyDown(ev);
+    },
+
+    _onNativeKeyDown: function(ev) {
+        // only pass this if there is no focused element.
+        // if there is, _onKeyDown will be called by the
+        // react keydown handler that respects the react bubbling order.
+        if (ev.target === document.body) {
+            this._onKeyDown(ev);
+        }
+    },
 
     _onKeyDown: function(ev) {
             /*
@@ -226,21 +349,12 @@ const LoggedInView = React.createClass({
 
         let handled = false;
         const ctrlCmdOnly = isOnlyCtrlOrCmdKeyEvent(ev);
+        const hasModifier = ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey;
 
         switch (ev.keyCode) {
-            case KeyCode.UP:
-            case KeyCode.DOWN:
-                if (ev.altKey && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey) {
-                    const action = ev.keyCode == KeyCode.UP ?
-                        'view_prev_room' : 'view_next_room';
-                    dis.dispatch({action: action});
-                    handled = true;
-                }
-                break;
-
             case KeyCode.PAGE_UP:
             case KeyCode.PAGE_DOWN:
-                if (!ev.ctrlKey && !ev.shiftKey && !ev.altKey && !ev.metaKey) {
+                if (!hasModifier) {
                     this._onScrollKeyPressed(ev);
                     handled = true;
                 }
@@ -261,20 +375,45 @@ const LoggedInView = React.createClass({
                     handled = true;
                 }
                 break;
+            case KeyCode.KEY_BACKTICK:
+                // Ideally this would be CTRL+P for "Profile", but that's
+                // taken by the print dialog. CTRL+I for "Information"
+                // was previously chosen but conflicted with italics in
+                // composer, so CTRL+` it is
+
+                if (ctrlCmdOnly) {
+                    dis.dispatch({
+                        action: 'toggle_top_left_menu',
+                    });
+                    handled = true;
+                }
+                break;
         }
 
         if (handled) {
             ev.stopPropagation();
             ev.preventDefault();
+        } else if (!hasModifier) {
+            const isClickShortcut = ev.target !== document.body &&
+                (ev.key === "Space" || ev.key === "Enter");
+
+            if (!isClickShortcut && !canElementReceiveInput(ev.target)) {
+                // synchronous dispatch so we focus before key generates input
+                dis.dispatch({action: 'focus_composer'}, true);
+                ev.stopPropagation();
+                // we should *not* preventDefault() here as
+                // that would prevent typing in the now-focussed composer
+            }
         }
     },
 
-    /** dispatch a page-up/page-down/etc to the appropriate component */
+    /**
+     * dispatch a page-up/page-down/etc to the appropriate component
+     * @param {Object} ev The key event
+     */
     _onScrollKeyPressed: function(ev) {
         if (this.refs.roomView) {
             this.refs.roomView.handleScrollKey(ev);
-        } else if (this.refs.roomDirectory) {
-            this.refs.roomDirectory.handleScrollKey(ev);
         }
     },
 
@@ -364,14 +503,15 @@ const LoggedInView = React.createClass({
         this.setState({mouseDown: null});
     },
 
+    _setResizeContainerRef(div) {
+        this.resizeContainer = div;
+    },
+
     render: function() {
         const LeftPanel = sdk.getComponent('structures.LeftPanel');
-        const RightPanel = sdk.getComponent('structures.RightPanel');
         const RoomView = sdk.getComponent('structures.RoomView');
-        const UserSettings = sdk.getComponent('structures.UserSettings');
-        const CreateRoom = sdk.getComponent('structures.CreateRoom');
-        const RoomDirectory = sdk.getComponent('structures.RoomDirectory');
-        const HomePage = sdk.getComponent('structures.HomePage');
+        const UserView = sdk.getComponent('structures.UserView');
+        const EmbeddedPage = sdk.getComponent('structures.EmbeddedPage');
         const GroupView = sdk.getComponent('structures.GroupView');
         const MyGroups = sdk.getComponent('structures.MyGroups');
         const MatrixToolbar = sdk.getComponent('globals.MatrixToolbar');
@@ -381,12 +521,11 @@ const LoggedInView = React.createClass({
         const PasswordNagBar = sdk.getComponent('globals.PasswordNagBar');
         const ServerLimitBar = sdk.getComponent('globals.ServerLimitBar');
 
-        let page_element;
-        let right_panel = '';
+        let pageElement;
 
         switch (this.props.page_type) {
             case PageTypes.RoomView:
-                page_element = <RoomView
+                pageElement = <RoomView
                         ref='roomView'
                         autoJoin={this.props.autoJoin}
                         onRegistered={this.props.onRegistered}
@@ -396,70 +535,39 @@ const LoggedInView = React.createClass({
                         eventPixelOffset={this.props.initialEventPixelOffset}
                         key={this.props.currentRoomId || 'roomview'}
                         disabled={this.props.middleDisabled}
-                        collapsedRhs={this.props.collapseRhs}
+                        collapsedRhs={this.props.collapsedRhs}
                         ConferenceHandler={this.props.ConferenceHandler}
+                        resizeNotifier={this.props.resizeNotifier}
                     />;
-                if (!this.props.collapseRhs) {
-                    right_panel = <RightPanel roomId={this.props.currentRoomId} disabled={this.props.rightDisabled} />;
-                }
-                break;
-
-            case PageTypes.UserSettings:
-                page_element = <UserSettings
-                    onClose={this.props.onCloseAllSettings}
-                    brand={this.props.config.brand}
-                    referralBaseUrl={this.props.config.referralBaseUrl}
-                    teamToken={this.props.teamToken}
-                />;
-                if (!this.props.collapseRhs) right_panel = <RightPanel disabled={this.props.rightDisabled} />;
                 break;
 
             case PageTypes.MyGroups:
-                page_element = <MyGroups />;
-                break;
-
-            case PageTypes.CreateRoom:
-                page_element = <CreateRoom
-                    onRoomCreated={this.props.onRoomCreated}
-                    collapsedRhs={this.props.collapseRhs}
-                />;
-                if (!this.props.collapseRhs) right_panel = <RightPanel disabled={this.props.rightDisabled} />;
+                pageElement = <MyGroups />;
                 break;
 
             case PageTypes.RoomDirectory:
-                page_element = <RoomDirectory
-                    ref="roomDirectory"
-                    config={this.props.config.roomDirectory}
-                />;
+                // handled by MatrixChat for now
                 break;
 
             case PageTypes.HomePage:
                 {
-                    // If team server config is present, pass the teamServerURL. props.teamToken
-                    // must also be set for the team page to be displayed, otherwise the
-                    // welcomePageUrl is used (which might be undefined).
-                    const teamServerUrl = this.props.config.teamServerConfig ?
-                        this.props.config.teamServerConfig.teamServerURL : null;
-
-                    page_element = <HomePage
-                        teamServerUrl={teamServerUrl}
-                        teamToken={this.props.teamToken}
-                        homePageUrl={this.props.config.welcomePageUrl}
+                    const pageUrl = getHomePageUrl(this.props.config);
+                    pageElement = <EmbeddedPage className="mx_HomePage"
+                        url={pageUrl}
+                        scrollbar={true}
                     />;
                 }
                 break;
 
             case PageTypes.UserView:
-                page_element = null; // deliberately null for now
-                right_panel = <RightPanel disabled={this.props.rightDisabled} />;
+                pageElement = <UserView userId={this.props.currentUserId} />;
                 break;
             case PageTypes.GroupView:
-                page_element = <GroupView
+                pageElement = <GroupView
                     groupId={this.props.currentGroupId}
                     isNew={this.props.currentGroupIsNew}
-                    collapsedRhs={this.props.collapseRhs}
+                    collapsedRhs={this.props.collapsedRhs}
                 />;
-                if (!this.props.collapseRhs) right_panel = <RightPanel groupId={this.props.currentGroupId} disabled={this.props.rightDisabled} />;
                 break;
         }
 
@@ -471,7 +579,6 @@ const LoggedInView = React.createClass({
         });
 
         let topBar;
-        const isGuest = this.props.matrixClient.isGuest();
         if (this.state.syncErrorData && this.state.syncErrorData.error.errcode === 'M_RESOURCE_LIMIT_EXCEEDED') {
             topBar = <ServerLimitBar kind='hard'
                 adminContact={this.state.syncErrorData.error.data.admin_contact}
@@ -495,7 +602,7 @@ const LoggedInView = React.createClass({
             topBar = <UpdateCheckBar {...this.props.checkingForUpdate} />;
         } else if (this.state.userHasGeneratedPassword) {
             topBar = <PasswordNagBar />;
-        } else if (!isGuest && Notifier.supportsDesktopNotifications() && !Notifier.isEnabled() && !Notifier.isToolbarHidden()) {
+        } else if (this.props.showNotifierToolbar) {
             topBar = <MatrixToolbar />;
         }
 
@@ -508,18 +615,17 @@ const LoggedInView = React.createClass({
         }
 
         return (
-            <div className='mx_MatrixChat_wrapper' aria-hidden={this.props.hideToSRUsers} onMouseDown={this._onMouseDown} onMouseUp={this._onMouseUp}>
+            <div onPaste={this._onPaste} onKeyDown={this._onReactKeyDown} className='mx_MatrixChat_wrapper' aria-hidden={this.props.hideToSRUsers} onMouseDown={this._onMouseDown} onMouseUp={this._onMouseUp}>
                 { topBar }
                 <DragDropContext onDragEnd={this._onDragEnd}>
-                    <div className={bodyClasses}>
+                    <div ref={this._setResizeContainerRef} className={bodyClasses}>
                         <LeftPanel
+                            resizeNotifier={this.props.resizeNotifier}
                             collapsed={this.props.collapseLhs || false}
                             disabled={this.props.leftDisabled}
                         />
-                        <main className='mx_MatrixChat_middlePanel'>
-                            { page_element }
-                        </main>
-                        { right_panel }
+                        <ResizeHandle />
+                        { pageElement }
                     </div>
                 </DragDropContext>
             </div>

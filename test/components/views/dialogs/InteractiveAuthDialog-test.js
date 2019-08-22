@@ -83,8 +83,8 @@ describe('InteractiveAuthDialog', function() {
                     submitNode = node;
                 }
             }
-            expect(passwordNode).toExist();
-            expect(submitNode).toExist();
+            expect(passwordNode).toBeTruthy();
+            expect(submitNode).toBeTruthy();
 
             // submit should be disabled
             expect(submitNode.disabled).toBe(true);
@@ -97,18 +97,15 @@ describe('InteractiveAuthDialog', function() {
             ReactTestUtils.Simulate.submit(formNode, {});
 
             expect(doRequest.callCount).toEqual(1);
-            expect(doRequest.calledWithExactly({
+            expect(doRequest.calledWithMatch({
                 session: "sess",
                 type: "m.login.password",
                 password: "s3kr3t",
-                user: "@user:id",
+                identifier: {
+                    type: "m.id.user",
+                    user: "@user:id",
+                },
             })).toBe(true);
-
-            // there should now be a spinner
-            ReactTestUtils.findRenderedComponentWithType(
-                dlg, sdk.getComponent('elements.Spinner'),
-            );
-
             // let the request complete
             return Promise.delay(1);
         }).then(() => {

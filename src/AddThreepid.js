@@ -17,16 +17,17 @@ limitations under the License.
 
 import MatrixClientPeg from './MatrixClientPeg';
 import { _t } from './languageHandler';
+import IdentityAuthClient from './IdentityAuthClient';
 
 /**
- * Allows a user to add a third party identifier to their Home Server and,
+ * Allows a user to add a third party identifier to their homeserver and,
  * optionally, the identity servers.
  *
  * This involves getting an email token from the identity server to "prove" that
  * the client owns the given email address, which is then passed to the
  * add threepid API on the homeserver.
  */
-class AddThreepid {
+export default class AddThreepid {
     constructor() {
         this.clientSecret = MatrixClientPeg.get().generateClientSecret();
     }
@@ -103,26 +104,29 @@ class AddThreepid {
     /**
      * Takes a phone number verification code as entered by the user and validates
      * it with the ID server, then if successful, adds the phone number.
-     * @param {string} token phone number verification code as entered by the user
+     * @param {string} msisdnToken phone number verification code as entered by the user
      * @return {Promise} Resolves if the phone number was added. Rejects with an object
      * with a "message" property which contains a human-readable message detailing why
      * the request failed.
      */
-    haveMsisdnToken(token) {
-        return MatrixClientPeg.get().submitMsisdnToken(
-            this.sessionId, this.clientSecret, token,
-        ).then((result) => {
-            if (result.errcode) {
-                throw result;
-            }
-            const identityServerDomain = MatrixClientPeg.get().idBaseUrl.split("://")[1];
-            return MatrixClientPeg.get().addThreePid({
-                sid: this.sessionId,
-                client_secret: this.clientSecret,
-                id_server: identityServerDomain,
-            }, this.bind);
-        });
+    async haveMsisdnToken(msisdnToken) {
+        const authClient = new IdentityAuthClient();
+        const identityAccessToken = await authClient.getAccessToken();
+        const result = await MatrixClientPeg.get().submitMsisdnToken(
+            this.sessionId,
+            this.clientSecret,
+            msisdnToken,
+            identityAccessToken,
+        );
+        if (result.errcode) {
+            throw result;
+        }
+
+        const identityServerDomain = MatrixClientPeg.get().idBaseUrl.split("://")[1];
+        return MatrixClientPeg.get().addThreePid({
+            sid: this.sessionId,
+            client_secret: this.clientSecret,
+            id_server: identityServerDomain,
+        }, this.bind);
     }
 }
-
-module.exports = AddThreepid;

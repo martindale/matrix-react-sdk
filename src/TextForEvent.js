@@ -17,6 +17,8 @@ import MatrixClientPeg from './MatrixClientPeg';
 import CallHandler from './CallHandler';
 import { _t } from './languageHandler';
 import * as Roles from './Roles';
+import {isValid3pidInvite} from "./RoomInvite";
+import SettingsStore from "./settings/SettingsStore";
 
 function textForMemberEvent(ev) {
     // XXX: SYJS-16 "sender is sometimes null for join messages"
@@ -73,9 +75,11 @@ function textForMemberEvent(ev) {
                     return _t('%(senderName)s changed their profile picture.', {senderName});
                 } else if (!prevContent.avatar_url && content.avatar_url) {
                     return _t('%(senderName)s set a profile picture.', {senderName});
+                } else if (SettingsStore.getValue("showHiddenEventsInTimeline")) {
+                    // This is a null rejoin, it will only be visible if the Labs option is enabled
+                    return _t("%(senderName)s made no change.", {senderName});
                 } else {
-                    // suppress null rejoins
-                    return '';
+                    return "";
                 }
             } else {
                 if (!ev.target) console.warn("Join message has no target! -- " + ev.getContent().state_key);
@@ -96,15 +100,14 @@ function textForMemberEvent(ev) {
                 }
             } else if (prevContent.membership === "ban") {
                 return _t('%(senderName)s unbanned %(targetName)s.', {senderName, targetName});
-            } else if (prevContent.membership === "join") {
-                return _t('%(senderName)s kicked %(targetName)s.', {senderName, targetName}) + ' ' + reason;
             } else if (prevContent.membership === "invite") {
                 return _t('%(senderName)s withdrew %(targetName)s\'s invitation.', {
                     senderName,
                     targetName,
                 }) + ' ' + reason;
             } else {
-                return _t('%(targetName)s left the room.', {targetName});
+                // sender is not target and made the target leave, if not from invite/ban then this is a kick
+                return _t('%(senderName)s kicked %(targetName)s.', {senderName, targetName}) + ' ' + reason;
             }
     }
 }
@@ -127,6 +130,73 @@ function textForRoomNameEvent(ev) {
         senderDisplayName,
         roomName: ev.getContent().name,
     });
+}
+
+function textForTombstoneEvent(ev) {
+    const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    return _t('%(senderDisplayName)s upgraded this room.', {senderDisplayName});
+}
+
+function textForJoinRulesEvent(ev) {
+    const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    switch (ev.getContent().join_rule) {
+        case "public":
+            return _t('%(senderDisplayName)s made the room public to whoever knows the link.', {senderDisplayName});
+        case "invite":
+            return _t('%(senderDisplayName)s made the room invite only.', {senderDisplayName});
+        default:
+            // The spec supports "knock" and "private", however nothing implements these.
+            return _t('%(senderDisplayName)s changed the join rule to %(rule)s', {
+                senderDisplayName,
+                rule: ev.getContent().join_rule,
+            });
+    }
+}
+
+function textForGuestAccessEvent(ev) {
+    const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    switch (ev.getContent().guest_access) {
+        case "can_join":
+            return _t('%(senderDisplayName)s has allowed guests to join the room.', {senderDisplayName});
+        case "forbidden":
+            return _t('%(senderDisplayName)s has prevented guests from joining the room.', {senderDisplayName});
+        default:
+            // There's no other options we can expect, however just for safety's sake we'll do this.
+            return _t('%(senderDisplayName)s changed guest access to %(rule)s', {
+                senderDisplayName,
+                rule: ev.getContent().guest_access,
+            });
+    }
+}
+
+function textForRelatedGroupsEvent(ev) {
+    const senderDisplayName = ev.sender && ev.sender.name ? ev.sender.name : ev.getSender();
+    const groups = ev.getContent().groups || [];
+    const prevGroups = ev.getPrevContent().groups || [];
+    const added = groups.filter((g) => !prevGroups.includes(g));
+    const removed = prevGroups.filter((g) => !groups.includes(g));
+
+    if (added.length && !removed.length) {
+        return _t('%(senderDisplayName)s enabled flair for %(groups)s in this room.', {
+            senderDisplayName,
+            groups: added.join(', '),
+        });
+    } else if (!added.length && removed.length) {
+        return _t('%(senderDisplayName)s disabled flair for %(groups)s in this room.', {
+            senderDisplayName,
+            groups: removed.join(', '),
+        });
+    } else if (added.length && removed.length) {
+        return _t('%(senderDisplayName)s enabled flair for %(newGroups)s and disabled flair for ' +
+            '%(oldGroups)s in this room.', {
+            senderDisplayName,
+            newGroups: added.join(', '),
+            oldGroups: removed.join(', '),
+        });
+    } else {
+        // Don't bother rendering this change (because there were no changes)
+        return '';
+    }
 }
 
 function textForServerACLEvent(ev) {
@@ -299,6 +369,15 @@ function textForCallInviteEvent(event) {
 
 function textForThreePidInviteEvent(event) {
     const senderName = event.sender ? event.sender.name : event.getSender();
+
+    if (!isValid3pidInvite(event)) {
+        const targetDisplayName = event.getPrevContent().display_name || _t("Someone");
+        return _t('%(senderName)s revoked the invitation for %(targetDisplayName)s to join the room.', {
+            senderName,
+            targetDisplayName,
+        });
+    }
+
     return _t('%(senderName)s sent an invitation to %(targetDisplayName)s to join the room.', {
         senderName,
         targetDisplayName: event.getContent().display_name,
@@ -337,7 +416,8 @@ function textForEncryptionEvent(event) {
 // Currently will only display a change if a user's power level is changed
 function textForPowerEvent(event) {
     const senderName = event.sender ? event.sender.name : event.getSender();
-    if (!event.getPrevContent() || !event.getPrevContent().users) {
+    if (!event.getPrevContent() || !event.getPrevContent().users ||
+        !event.getContent() || !event.getContent().users) {
         return '';
     }
     const userDefault = event.getContent().users_default || 0;
@@ -433,6 +513,10 @@ const stateHandlers = {
     'm.room.power_levels': textForPowerEvent,
     'm.room.pinned_events': textForPinnedEvent,
     'm.room.server_acl': textForServerACLEvent,
+    'm.room.tombstone': textForTombstoneEvent,
+    'm.room.join_rules': textForJoinRulesEvent,
+    'm.room.guest_access': textForGuestAccessEvent,
+    'm.room.related_groups': textForRelatedGroupsEvent,
 
     'im.vector.modular.widgets': textForWidgetEvent,
 };

@@ -1,5 +1,6 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
+Copyright 2019 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,17 +31,20 @@ limitations under the License.
 }
 
 .mx_ContextualMenu {
-    border: solid 1px $menu-border-color;
     border-radius: 4px;
+    box-shadow: 4px 4px 12px 0 $menu-box-shadow-color;
     background-color: $menu-bg-color;
     color: $primary-fg-color;
     position: absolute;
-    padding: 6px;
-	font-size: 14px;
+    font-size: 14px;
     z-index: 5001;
 }
 
-.mx_ContextualMenu.mx_ContextualMenu_right {
+.mx_ContextualMenu_right {
+    right: 0;
+}
+
+.mx_ContextualMenu.mx_ContextualMenu_withChevron_right {
     right: 8px;
 }
 
@@ -51,23 +55,15 @@ limitations under the License.
     width: 0;
     height: 0;
     border-top: 8px solid transparent;
-    border-left: 8px solid $menu-border-color;
+    border-left: 8px solid $menu-bg-color;
     border-bottom: 8px solid transparent;
 }
 
-.mx_ContextualMenu_chevron_right:after {
-    content:'';
-    width: 0;
-    height: 0;
-    border-top: 7px solid transparent;
-    border-left: 7px solid $menu-bg-color;
-    border-bottom: 7px solid transparent;
-    position:absolute;
-    top: -7px;
-    right: 1px;
+.mx_ContextualMenu_left {
+    left: 0;
 }
 
-.mx_ContextualMenu.mx_ContextualMenu_left {
+.mx_ContextualMenu.mx_ContextualMenu_withChevron_left {
     left: 8px;
 }
 
@@ -78,23 +74,15 @@ limitations under the License.
     width: 0;
     height: 0;
     border-top: 8px solid transparent;
-    border-right: 8px solid $menu-border-color;
+    border-right: 8px solid $menu-bg-color;
     border-bottom: 8px solid transparent;
 }
 
-.mx_ContextualMenu_chevron_left:after{
-    content:'';
-    width: 0;
-    height: 0;
-    border-top: 7px solid transparent;
-    border-right: 7px solid $menu-bg-color;
-    border-bottom: 7px solid transparent;
-    position:absolute;
-    top: -7px;
-    left: 1px;
+.mx_ContextualMenu_top {
+    top: 0;
 }
 
-.mx_ContextualMenu.mx_ContextualMenu_top {
+.mx_ContextualMenu.mx_ContextualMenu_withChevron_top {
     top: 8px;
 }
 
@@ -105,23 +93,15 @@ limitations under the License.
     width: 0;
     height: 0;
     border-left: 8px solid transparent;
-    border-bottom: 8px solid $menu-border-color;
+    border-bottom: 8px solid $menu-bg-color;
     border-right: 8px solid transparent;
 }
 
-.mx_ContextualMenu_chevron_top:after{
-    content:'';
-    width: 0;
-    height: 0;
-    border-left: 7px solid transparent;
-    border-bottom: 7px solid $menu-bg-color;
-    border-right: 7px solid transparent;
-    position:absolute;
-    left: -7px;
-    top: 1px;
+.mx_ContextualMenu_bottom {
+    bottom: 0;
 }
 
-.mx_ContextualMenu.mx_ContextualMenu_bottom {
+.mx_ContextualMenu.mx_ContextualMenu_withChevron_bottom {
     bottom: 8px;
 }
 
@@ -132,26 +112,8 @@ limitations under the License.
     width: 0;
     height: 0;
     border-left: 8px solid transparent;
-    border-top: 8px solid $menu-border-color;
+    border-top: 8px solid $menu-bg-color;
     border-right: 8px solid transparent;
-}
-
-.mx_ContextualMenu_chevron_bottom:after{
-    content:'';
-    width: 0;
-    height: 0;
-    border-left: 7px solid transparent;
-    border-top: 7px solid $menu-bg-color;
-    border-right: 7px solid transparent;
-    position:absolute;
-    left: -7px;
-    bottom: 1px;
-}
-
-.mx_ContextualMenu_field {
-    padding: 3px 6px 3px 6px;
-    cursor: pointer;
-    white-space: nowrap;
 }
 
 .mx_ContextualMenu_spinner {

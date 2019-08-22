@@ -40,12 +40,12 @@ limitations under the License.
     opacity: 0.5;
     position: relative;
     top: -4px;
-/*
+    /*
     animation-duration: 1s;
     animation-name: bounce;
     animation-direction: alternate;
     animation-iteration-count: infinite;
-*/
+    */
 }
 
 .mx_RoomStatusBar_placeholderIndicator span:nth-child(1) {
@@ -121,7 +121,7 @@ limitations under the License.
 
 .mx_RoomStatusBar_connectionLostBar img {
     padding-left: 10px;
-    padding-right: 22px;
+    padding-right: 10px;
     vertical-align: middle;
     float: left;
 }
@@ -138,8 +138,8 @@ limitations under the License.
 }
 
 .mx_RoomStatusBar_resend_link {
-    color: $primary-fg-color ! important;
-    text-decoration: underline ! important;
+    color: $primary-fg-color !important;
+    text-decoration: underline !important;
     cursor: pointer;
 }
 
@@ -173,12 +173,12 @@ limitations under the License.
     }
 
     .mx_RoomStatusBar_callBar {
-      height: 40px;
-      line-height: 40px;
+        height: 40px;
+        line-height: 40px;
     }
 
     .mx_RoomStatusBar_typingBar {
-      height: 40px;
-      line-height: 40px;
+        height: 40px;
+        line-height: 40px;
     }
 }

@@ -1,6 +1,8 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
-Copyright 2017, 2018 New Vector Ltd
+Copyright 2017, 2018, 2019 New Vector Ltd
+Copyright 2019 Michael Telatynski <7t3chguy@gmail.com>
+Copyright 2019 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,12 +19,15 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
+
 import { _t, _td } from '../../../languageHandler';
 import sdk from '../../../index';
 import MatrixClientPeg from '../../../MatrixClientPeg';
 import Promise from 'bluebird';
 import { addressTypes, getAddressType } from '../../../UserAddress.js';
 import GroupStore from '../../../stores/GroupStore';
+import * as Email from '../../../email';
+import IdentityAuthClient from '../../../IdentityAuthClient';
 
 const TRUNCATE_QUERY_LIST = 40;
 const QUERY_USER_DIRECTORY_DEBOUNCE_MS = 200;
@@ -69,12 +74,11 @@ module.exports = React.createClass({
 
     getInitialState: function() {
         return {
-            error: false,
-
+            // Whether to show an error message because of an invalid address
+            invalidAddressError: false,
             // List of UserAddressType objects representing
             // the list of addresses we're going to invite
             selectedList: [],
-
             // Whether a search is ongoing
             busy: false,
             // An error message generated during the user directory search
@@ -101,7 +105,7 @@ module.exports = React.createClass({
         // Check the text input field to see if user has an unconverted address
         // If there is and it's valid add it to the local selectedList
         if (this.refs.textinput.value !== '') {
-            selectedList = this._addInputToList();
+            selectedList = this._addAddressesToList([this.refs.textinput.value]);
             if (selectedList === null) return;
         }
         this.props.onFinished(true, selectedList);
@@ -139,12 +143,12 @@ module.exports = React.createClass({
                 // if there's nothing in the input box, submit the form
                 this.onButtonClick();
             } else {
-                this._addInputToList();
+                this._addAddressesToList([this.refs.textinput.value]);
             }
         } else if (e.keyCode === 188 || e.keyCode === 9) { // comma or tab
             e.stopPropagation();
             e.preventDefault();
-            this._addInputToList();
+            this._addAddressesToList([this.refs.textinput.value]);
         }
     },
 
@@ -204,7 +208,7 @@ module.exports = React.createClass({
 
     onSelected: function(index) {
         const selectedList = this.state.selectedList.slice();
-        selectedList.push(this.state.suggestedList[index]);
+        selectedList.push(this._getFilteredSuggestions()[index]);
         this.setState({
             selectedList,
             suggestedList: [],
@@ -388,6 +392,17 @@ module.exports = React.createClass({
         const suggestedList = [];
         results.forEach((result) => {
             if (result.room_id) {
+                const client = MatrixClientPeg.get();
+                const room = client.getRoom(result.room_id);
+                if (room) {
+                    const tombstone = room.currentState.getStateEvents('m.room.tombstone', '');
+                    if (tombstone && tombstone.getContent() && tombstone.getContent()["replacement_room"]) {
+                        const replacementRoom = client.getRoom(tombstone.getContent()["replacement_room"]);
+
+                        // Skip rooms with tombstones where we are also aware of the replacement room.
+                        if (replacementRoom) return;
+                    }
+                }
                 suggestedList.push({
                     addressType: 'mx-room-id',
                     address: result.room_id,
@@ -419,6 +434,10 @@ module.exports = React.createClass({
         // a perfectly valid address if there are close matches.
         const addrType = getAddressType(query);
         if (this.props.validAddressTypes.includes(addrType)) {
+            if (addrType === 'email' && !Email.looksValid(query)) {
+                this.setState({searchError: _t("That doesn't look like a valid email address")});
+                return;
+            }
             suggestedList.unshift({
                 addressType: addrType,
                 address: query,
@@ -426,56 +445,62 @@ module.exports = React.createClass({
             });
             if (this._cancelThreepidLookup) this._cancelThreepidLookup();
             if (addrType === 'email') {
-                this._lookupThreepid(addrType, query).done();
+                this._lookupThreepid(addrType, query);
             }
         }
         this.setState({
             suggestedList,
-            error: false,
+            invalidAddressError: false,
         }, () => {
             if (this.addressSelector) this.addressSelector.moveSelectionTop();
         });
     },
 
-    _addInputToList: function() {
-        const addressText = this.refs.textinput.value.trim();
-        const addrType = getAddressType(addressText);
-        const addrObj = {
-            addressType: addrType,
-            address: addressText,
-            isKnown: false,
-        };
-        if (!this.props.validAddressTypes.includes(addrType)) {
-            this.setState({ error: true });
-            return null;
-        } else if (addrType === 'mx-user-id') {
-            const user = MatrixClientPeg.get().getUser(addrObj.address);
-            if (user) {
-                addrObj.displayName = user.displayName;
-                addrObj.avatarMxc = user.avatarUrl;
-                addrObj.isKnown = true;
-            }
-        } else if (addrType === 'mx-room-id') {
-            const room = MatrixClientPeg.get().getRoom(addrObj.address);
-            if (room) {
-                addrObj.displayName = room.name;
-                addrObj.avatarMxc = room.avatarUrl;
-                addrObj.isKnown = true;
-            }
-        }
-
+    _addAddressesToList: function(addressTexts) {
         const selectedList = this.state.selectedList.slice();
-        selectedList.push(addrObj);
+
+        let hasError = false;
+        addressTexts.forEach((addressText) => {
+            addressText = addressText.trim();
+            const addrType = getAddressType(addressText);
+            const addrObj = {
+                addressType: addrType,
+                address: addressText,
+                isKnown: false,
+            };
+
+            if (!this.props.validAddressTypes.includes(addrType)) {
+                hasError = true;
+            } else if (addrType === 'mx-user-id') {
+                const user = MatrixClientPeg.get().getUser(addrObj.address);
+                if (user) {
+                    addrObj.displayName = user.displayName;
+                    addrObj.avatarMxc = user.avatarUrl;
+                    addrObj.isKnown = true;
+                }
+            } else if (addrType === 'mx-room-id') {
+                const room = MatrixClientPeg.get().getRoom(addrObj.address);
+                if (room) {
+                    addrObj.displayName = room.name;
+                    addrObj.avatarMxc = room.avatarUrl;
+                    addrObj.isKnown = true;
+                }
+            }
+
+            selectedList.push(addrObj);
+        });
+
         this.setState({
             selectedList,
             suggestedList: [],
             query: "",
+            invalidAddressError: hasError ? true : this.state.invalidAddressError,
         });
         if (this._cancelThreepidLookup) this._cancelThreepidLookup();
-        return selectedList;
+        return hasError ? null : selectedList;
     },
 
-    _lookupThreepid: function(medium, address) {
+    _lookupThreepid: async function(medium, address) {
         let cancelled = false;
         // Note that we can't safely remove this after we're done
         // because we don't know that it's the same one, so we just
@@ -486,36 +511,44 @@ module.exports = React.createClass({
         };
 
         // wait a bit to let the user finish typing
-        return Promise.delay(500).then(() => {
-            if (cancelled) return null;
-            return MatrixClientPeg.get().lookupThreePid(medium, address);
-        }).then((res) => {
-            if (res === null || !res.mxid) return null;
+        await Promise.delay(500);
+        if (cancelled) return null;
+
+        try {
+            const authClient = new IdentityAuthClient();
+            const identityAccessToken = await authClient.getAccessToken();
             if (cancelled) return null;
 
-            return MatrixClientPeg.get().getProfileInfo(res.mxid);
-        }).then((res) => {
-            if (res === null) return null;
-            if (cancelled) return null;
+            const lookup = await MatrixClientPeg.get().lookupThreePid(
+                medium,
+                address,
+                undefined /* callback */,
+                identityAccessToken,
+            );
+            if (cancelled || lookup === null || !lookup.mxid) return null;
+
+            const profile = await MatrixClientPeg.get().getProfileInfo(lookup.mxid);
+            if (cancelled || profile === null) return null;
+
             this.setState({
                 suggestedList: [{
                     // a UserAddressType
                     addressType: medium,
                     address: address,
-                    displayName: res.displayname,
-                    avatarMxc: res.avatar_url,
+                    displayName: profile.displayname,
+                    avatarMxc: profile.avatar_url,
                     isKnown: true,
                 }],
             });
-        });
+        } catch (e) {
+            console.error(e);
+            this.setState({
+                searchError: _t('Something went wrong!'),
+            });
+        }
     },
 
-    render: function() {
-        const BaseDialog = sdk.getComponent('views.dialogs.BaseDialog');
-        const DialogButtons = sdk.getComponent('views.elements.DialogButtons');
-        const AddressSelector = sdk.getComponent("elements.AddressSelector");
-        this.scrollElement = null;
-
+    _getFilteredSuggestions: function() {
         // map addressType => set of addresses to avoid O(n*m) operation
         const selectedAddresses = {};
         this.state.selectedList.forEach(({address, addressType}) => {
@@ -524,9 +557,24 @@ module.exports = React.createClass({
         });
 
         // Filter out any addresses in the above already selected addresses (matching both type and address)
-        const filteredSuggestedList = this.state.suggestedList.filter(({address, addressType}) => {
+        return this.state.suggestedList.filter(({address, addressType}) => {
             return !(selectedAddresses[addressType] && selectedAddresses[addressType].has(address));
         });
+    },
+
+    _onPaste: function(e) {
+        // Prevent the text being pasted into the textarea
+        e.preventDefault();
+        const text = e.clipboardData.getData("text");
+        // Process it as a list of addresses to add instead
+        this._addAddressesToList(text.split(/[\s,]+/));
+    },
+
+    render: function() {
+        const BaseDialog = sdk.getComponent('views.dialogs.BaseDialog');
+        const DialogButtons = sdk.getComponent('views.elements.DialogButtons');
+        const AddressSelector = sdk.getComponent("elements.AddressSelector");
+        this.scrollElement = null;
 
         const query = [];
         // create the invite list
@@ -546,11 +594,13 @@ module.exports = React.createClass({
 
         // Add the query at the end
         query.push(
-            <textarea key={this.state.selectedList.length}
+            <textarea
+                key={this.state.selectedList.length}
+                onPaste={this._onPaste}
                 rows="1"
                 id="textinput"
                 ref="textinput"
-                className="mx_ChatInviteDialog_input"
+                className="mx_AddressPickerDialog_input"
                 onChange={this.onQueryChanged}
                 placeholder={this.props.placeholder}
                 defaultValue={this.props.value}
@@ -558,11 +608,13 @@ module.exports = React.createClass({
             </textarea>,
         );
 
+        const filteredSuggestedList = this._getFilteredSuggestions();
+
         let error;
         let addressSelector;
-        if (this.state.error) {
+        if (this.state.invalidAddressError) {
             const validTypeDescriptions = this.props.validAddressTypes.map((t) => _t(addressTypeName[t]));
-            error = <div className="mx_ChatInviteDialog_error">
+            error = <div className="mx_AddressPickerDialog_error">
                 { _t("You have entered an invalid address.") }
                 <br />
                 { _t("Try using one of the following valid address types: %(validTypesList)s.", {
@@ -570,9 +622,9 @@ module.exports = React.createClass({
                 }) }
             </div>;
         } else if (this.state.searchError) {
-            error = <div className="mx_ChatInviteDialog_error">{ this.state.searchError }</div>;
+            error = <div className="mx_AddressPickerDialog_error">{ this.state.searchError }</div>;
         } else if (this.state.query.length > 0 && filteredSuggestedList.length === 0 && !this.state.busy) {
-            error = <div className="mx_ChatInviteDialog_error">{ _t("No results") }</div>;
+            error = <div className="mx_AddressPickerDialog_error">{ _t("No results") }</div>;
         } else {
             addressSelector = (
                 <AddressSelector ref={(ref) => {this.addressSelector = ref;}}
@@ -585,13 +637,13 @@ module.exports = React.createClass({
         }
 
         return (
-            <BaseDialog className="mx_ChatInviteDialog" onKeyDown={this.onKeyDown}
+            <BaseDialog className="mx_AddressPickerDialog" onKeyDown={this.onKeyDown}
                 onFinished={this.props.onFinished} title={this.props.title}>
-                <div className="mx_ChatInviteDialog_label">
+                <div className="mx_AddressPickerDialog_label">
                     <label htmlFor="textinput">{ this.props.description }</label>
                 </div>
                 <div className="mx_Dialog_content">
-                    <div className="mx_ChatInviteDialog_inputContainer">{ query }</div>
+                    <div className="mx_AddressPickerDialog_inputContainer">{ query }</div>
                     { error }
                     { addressSelector }
                     { this.props.extraNode }

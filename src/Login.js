@@ -49,6 +49,7 @@ export default class Login {
     /**
      * Get a temporary MatrixClient, which can be used for login or register
      * requests.
+     * @returns {MatrixClient}
      */
     _createTemporaryClient() {
         return Matrix.createClient({
@@ -78,26 +79,6 @@ export default class Login {
         // for login so we can ignore it.
         const flowStep = this._flows[this._currentFlowIndex];
         return flowStep ? flowStep.type : null;
-    }
-
-    loginAsGuest() {
-        const client = this._createTemporaryClient();
-        return client.registerGuest({
-            body: {
-                initial_device_display_name: this._defaultDeviceDisplayName,
-            },
-        }).then((creds) => {
-            return {
-                userId: creds.user_id,
-                deviceId: creds.device_id,
-                accessToken: creds.access_token,
-                homeserverUrl: this._hsUrl,
-                identityServerUrl: this._isUrl,
-                guest: true,
-            };
-        }, (error) => {
-            throw error;
-        });
     }
 
     loginViaPassword(username, phoneCountry, phoneNumber, pass) {
@@ -144,8 +125,8 @@ export default class Login {
         const tryFallbackHs = (originalError) => {
             return sendLoginRequest(
                 self._fallbackHsUrl, this._isUrl, 'm.login.password', loginParams,
-            ).catch((fallback_error) => {
-                console.log("fallback HS login failed", fallback_error);
+            ).catch((fallbackError) => {
+                console.log("fallback HS login failed", fallbackError);
                 // throw the original error
                 throw originalError;
             });
@@ -203,6 +184,19 @@ export async function sendLoginRequest(hsUrl, isUrl, loginType, loginParams) {
     });
 
     const data = await client.login(loginType, loginParams);
+
+    const wellknown = data.well_known;
+    if (wellknown) {
+        if (wellknown["m.homeserver"] && wellknown["m.homeserver"]["base_url"]) {
+            hsUrl = wellknown["m.homeserver"]["base_url"];
+            console.log(`Overrode homeserver setting with ${hsUrl} from login response`);
+        }
+        if (wellknown["m.identity_server"] && wellknown["m.identity_server"]["base_url"]) {
+            // TODO: should we prompt here?
+            isUrl = wellknown["m.identity_server"]["base_url"];
+            console.log(`Overrode IS setting with ${isUrl} from login response`);
+        }
+    }
 
     return {
         homeserverUrl: hsUrl,

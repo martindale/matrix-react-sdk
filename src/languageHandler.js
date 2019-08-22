@@ -1,6 +1,7 @@
 /*
 Copyright 2017 MTRNord and Cooperative EITA
 Copyright 2017 Vector Creations Ltd.
+Copyright 2019 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,6 +32,18 @@ const ANNOTATE_STRINGS = false;
 counterpart.setSeparator('|');
 // Fall back to English
 counterpart.setFallbackLocale('en');
+
+/**
+ * Helper function to create an error which has an English message
+ * with a translatedMessage property for use by the consumer.
+ * @param {string} message Message to translate.
+ * @returns {Error} The constructed error.
+ */
+export function newTranslatableError(message) {
+    const error = new Error(message);
+    error.translatedMessage = _t(message);
+    return error;
+}
 
 // Function which only purpose is to mark that a string is translatable
 // Does not actually do anything. It's helpful for automatic extraction of translatable strings
@@ -125,20 +138,25 @@ export function _t(text, variables, tags) {
  * @return a React <span> component if any non-strings were used in substitutions, otherwise a string
  */
 export function substitute(text, variables, tags) {
-    const regexpMapping = {};
+    let result = text;
 
     if (variables !== undefined) {
+        const regexpMapping = {};
         for (const variable in variables) {
             regexpMapping[`%\\(${variable}\\)s`] = variables[variable];
         }
+        result = replaceByRegexes(result, regexpMapping);
     }
 
     if (tags !== undefined) {
+        const regexpMapping = {};
         for (const tag in tags) {
             regexpMapping[`(<${tag}>(.*?)<\\/${tag}>|<${tag}>|<${tag}\\s*\\/>)`] = tags[tag];
         }
+        result = replaceByRegexes(result, regexpMapping);
     }
-    return replaceByRegexes(text, regexpMapping);
+
+    return result;
 }
 
 /*
@@ -336,10 +354,51 @@ export function getCurrentLanguage() {
     return counterpart.getLocale();
 }
 
+/**
+ * Given a list of language codes, pick the most appropriate one
+ * given the current language (ie. getCurrentLanguage())
+ * English is assumed to be a reasonable default.
+ *
+ * @param {string[]} langs List of language codes to pick from
+ * @returns {string} The most appropriate language code from langs
+ */
+export function pickBestLanguage(langs) {
+    const currentLang = getCurrentLanguage();
+    const normalisedLangs = langs.map(normalizeLanguageKey);
+
+    {
+        // Best is an exact match
+        const currentLangIndex = normalisedLangs.indexOf(currentLang);
+        if (currentLangIndex > -1) return langs[currentLangIndex];
+    }
+
+    {
+        // Failing that, a different dialect of the same lnguage
+        const closeLangIndex = normalisedLangs.find((l) => l.substr(0,2) === currentLang.substr(0,2));
+        if (closeLangIndex > -1) return langs[closeLangIndex];
+    }
+
+    {
+        // Neither of those? Try an english variant.
+        const enIndex = normalisedLangs.find((l) => l.startsWith('en'));
+        if (enIndex > -1) return langs[enIndex];
+    }
+
+    // if nothing else, use the first
+    return langs[0];
+}
+
 function getLangsJson() {
     return new Promise((resolve, reject) => {
+        let url;
+        try {
+            // $webapp is a webpack resolve alias pointing to the output directory, see webpack config
+            url = require('$webapp/i18n/languages.json');
+        } catch (e) {
+            url = i18nFolder + 'languages.json';
+        }
         request(
-            { method: "GET", url: i18nFolder + 'languages.json' },
+            { method: "GET", url },
             (err, response, body) => {
                 if (err || response.status < 200 || response.status >= 300) {
                     reject({err: err, response: response});

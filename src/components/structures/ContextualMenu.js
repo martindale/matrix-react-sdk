@@ -1,6 +1,7 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
 Copyright 2018 New Vector Ltd
+Copyright 2019 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
 
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -48,14 +48,14 @@ export default class ContextualMenu extends React.Component {
         menuWidth: PropTypes.number,
         menuHeight: PropTypes.number,
         chevronOffset: PropTypes.number,
-        menuColour: PropTypes.string,
-        chevronFace: PropTypes.string, // top, bottom, left, right
+        chevronFace: PropTypes.string, // top, bottom, left, right or none
         // Function to be called on menu close
         onFinished: PropTypes.func,
         menuPaddingTop: PropTypes.number,
         menuPaddingRight: PropTypes.number,
         menuPaddingBottom: PropTypes.number,
         menuPaddingLeft: PropTypes.number,
+        zIndex: PropTypes.number,
 
         // If true, insert an invisible screen-sized element behind the
         // menu that when clicked will close it.
@@ -113,7 +113,6 @@ export default class ContextualMenu extends React.Component {
     render() {
         const position = {};
         let chevronFace = null;
-
         const props = this.props;
 
         if (props.top) {
@@ -137,6 +136,8 @@ export default class ContextualMenu extends React.Component {
         if (props.chevronFace) {
             chevronFace = props.chevronFace;
         }
+        const hasChevron = chevronFace && chevronFace !== "none";
+
         if (chevronFace === 'top' || chevronFace === 'bottom') {
             chevronOffset.left = props.chevronOffset;
         } else {
@@ -155,34 +156,21 @@ export default class ContextualMenu extends React.Component {
             chevronOffset.top = Math.max(props.chevronOffset, props.chevronOffset + target - adjusted);
         }
 
-        // To override the default chevron colour, if it's been set
-        let chevronCSS = "";
-        if (props.menuColour) {
-            chevronCSS = `
-                .mx_ContextualMenu_chevron_left:after {
-                    border-right-color: ${props.menuColour};
-                }
-                .mx_ContextualMenu_chevron_right:after {
-                    border-left-color: ${props.menuColour};
-                }
-                .mx_ContextualMenu_chevron_top:after {
-                    border-left-color: ${props.menuColour};
-                }
-                .mx_ContextualMenu_chevron_bottom:after {
-                    border-left-color: ${props.menuColour};
-                }
-            `;
-        }
-
-        const chevron = <div style={chevronOffset} className={"mx_ContextualMenu_chevron_" + chevronFace} />;
+        const chevron = hasChevron ?
+            <div style={chevronOffset} className={"mx_ContextualMenu_chevron_" + chevronFace} /> :
+            undefined;
         const className = 'mx_ContextualMenu_wrapper';
 
         const menuClasses = classNames({
             'mx_ContextualMenu': true,
-            'mx_ContextualMenu_left': chevronFace === 'left',
-            'mx_ContextualMenu_right': chevronFace === 'right',
-            'mx_ContextualMenu_top': chevronFace === 'top',
-            'mx_ContextualMenu_bottom': chevronFace === 'bottom',
+            'mx_ContextualMenu_left': !hasChevron && position.left,
+            'mx_ContextualMenu_right': !hasChevron && position.right,
+            'mx_ContextualMenu_top': !hasChevron && position.top,
+            'mx_ContextualMenu_bottom': !hasChevron && position.bottom,
+            'mx_ContextualMenu_withChevron_left': chevronFace === 'left',
+            'mx_ContextualMenu_withChevron_right': chevronFace === 'right',
+            'mx_ContextualMenu_withChevron_top': chevronFace === 'top',
+            'mx_ContextualMenu_withChevron_bottom': chevronFace === 'bottom',
         });
 
         const menuStyle = {};
@@ -192,10 +180,6 @@ export default class ContextualMenu extends React.Component {
 
         if (props.menuHeight) {
             menuStyle.height = props.menuHeight;
-        }
-
-        if (props.menuColour) {
-            menuStyle["backgroundColor"] = props.menuColour;
         }
 
         if (!isNaN(Number(props.menuPaddingTop))) {
@@ -211,18 +195,23 @@ export default class ContextualMenu extends React.Component {
             menuStyle["paddingRight"] = props.menuPaddingRight;
         }
 
+        const wrapperStyle = {};
+        if (!isNaN(Number(props.zIndex))) {
+            menuStyle["zIndex"] = props.zIndex + 1;
+            wrapperStyle["zIndex"] = props.zIndex;
+        }
+
         const ElementClass = props.elementClass;
 
         // FIXME: If a menu uses getDefaultProps it clobbers the onFinished
         // property set here so you can't close the menu from a button click!
-        return <div className={className} style={position}>
+        return <div className={className} style={{...position, ...wrapperStyle}}>
             <div className={menuClasses} style={menuStyle} ref={this.collectContextMenuRect}>
                 { chevron }
                 <ElementClass {...props} onFinished={props.closeMenu} onResize={props.windowResize} />
             </div>
-            { props.hasBackground && <div className="mx_ContextualMenu_background"
+            { props.hasBackground && <div className="mx_ContextualMenu_background" style={wrapperStyle}
                                           onClick={props.closeMenu} onContextMenu={this.onContextMenu} /> }
-            <style>{ chevronCSS }</style>
         </div>;
     }
 }
