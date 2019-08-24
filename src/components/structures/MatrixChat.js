@@ -446,6 +446,29 @@ export default React.createClass({
         }
 
         switch (payload.action) {
+            case 'MatrixActions.accountData':
+                // XXX: This is a collection of several hacks to solve a minor problem. We want to
+                // update our local state when the ID server changes, but don't want to put that in
+                // the js-sdk as we'd be then dictating how all consumers need to behave. However,
+                // this component is already bloated and we probably don't want this tiny logic in
+                // here, but there's no better place in the react-sdk for it. Additionally, we're
+                // abusing the MatrixActionCreator stuff to avoid errors on dispatches.
+                if (payload.event_type === 'm.identity_server') {
+                    const fullUrl = payload.event_content ? payload.event_content['base_url'] : null;
+                    if (!fullUrl) {
+                        MatrixClientPeg.get().setIdentityServerUrl(null);
+                        localStorage.removeItem("mx_is_access_token");
+                        localStorage.removeItem("mx_is_url");
+                    } else {
+                        MatrixClientPeg.get().setIdentityServerUrl(fullUrl);
+                        localStorage.removeItem("mx_is_access_token"); // clear token
+                        localStorage.setItem("mx_is_url", fullUrl); // XXX: Do we still need this?
+                    }
+
+                    // redispatch the change with a more specific action
+                    dis.dispatch({action: 'id_server_changed'});
+                }
+                break;
             case 'logout':
                 Lifecycle.logout();
                 break;
@@ -584,7 +607,7 @@ export default React.createClass({
                 this._setMxId(payload);
                 break;
             case 'view_start_chat_or_reuse':
-                this._chatCreateOrReuse(payload.user_id, payload.go_home_on_cancel);
+                this._chatCreateOrReuse(payload.user_id);
                 break;
             case 'view_create_chat':
                 showStartChatInviteDialog();
@@ -931,26 +954,20 @@ export default React.createClass({
         }).close;
     },
 
-    _createRoom: function() {
+    _createRoom: async function() {
         const CreateRoomDialog = sdk.getComponent('dialogs.CreateRoomDialog');
-        Modal.createTrackedDialog('Create Room', '', CreateRoomDialog, {
-            onFinished: (shouldCreate, name, noFederate) => {
-                if (shouldCreate) {
-                    const createOpts = {};
-                    if (name) createOpts.name = name;
-                    if (noFederate) createOpts.creation_content = {'m.federate': false};
-                    createRoom({createOpts}).done();
-                }
-            },
-        });
+        const modal = Modal.createTrackedDialog('Create Room', '', CreateRoomDialog);
+
+        const [shouldCreate, name, noFederate] = await modal.finished;
+        if (shouldCreate) {
+            const createOpts = {};
+            if (name) createOpts.name = name;
+            if (noFederate) createOpts.creation_content = {'m.federate': false};
+            createRoom({createOpts}).done();
+        }
     },
 
-    _chatCreateOrReuse: function(userId, goHomeOnCancel) {
-        if (goHomeOnCancel === undefined) goHomeOnCancel = true;
-
-        const ChatCreateOrReuseDialog = sdk.getComponent(
-            'views.dialogs.ChatCreateOrReuseDialog',
-        );
+    _chatCreateOrReuse: function(userId) {
         // Use a deferred action to reshow the dialog once the user has registered
         if (MatrixClientPeg.get().isGuest()) {
             // No point in making 2 DMs with welcome bot. This assumes view_set_mxid will
@@ -975,30 +992,23 @@ export default React.createClass({
             return;
         }
 
-        const close = Modal.createTrackedDialog('Chat create or reuse', '', ChatCreateOrReuseDialog, {
-            userId: userId,
-            onFinished: (success) => {
-                if (!success && goHomeOnCancel) {
-                    // Dialog cancelled, default to home
-                    dis.dispatch({ action: 'view_home_page' });
-                }
-            },
-            onNewDMClick: () => {
-                dis.dispatch({
-                    action: 'start_chat',
-                    user_id: userId,
-                });
-                // Close the dialog, indicate success (calls onFinished(true))
-                close(true);
-            },
-            onExistingRoomSelected: (roomId) => {
-                dis.dispatch({
-                    action: 'view_room',
-                    room_id: roomId,
-                });
-                close(true);
-            },
-        }).close;
+        // TODO: Immutable DMs replaces this
+
+        const client = MatrixClientPeg.get();
+        const dmRoomMap = new DMRoomMap(client);
+        const dmRooms = dmRoomMap.getDMRoomsForUserId(userId);
+
+        if (dmRooms.length > 0) {
+            dis.dispatch({
+                action: 'view_room',
+                room_id: dmRooms[0],
+            });
+        } else {
+            dis.dispatch({
+                action: 'start_chat',
+                user_id: userId,
+            });
+        }
     },
 
     _leaveRoomWarnings: function(roomId) {

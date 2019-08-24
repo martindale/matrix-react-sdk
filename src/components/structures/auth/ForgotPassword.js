@@ -62,10 +62,12 @@ module.exports = React.createClass({
             serverIsAlive: true,
             serverErrorIsFatal: false,
             serverDeadError: "",
+            serverRequiresIdServer: null,
         };
     },
 
     componentWillMount: function() {
+        this.reset = null;
         this._checkServerLiveliness(this.props.serverConfig);
     },
 
@@ -83,7 +85,14 @@ module.exports = React.createClass({
                 serverConfig.hsUrl,
                 serverConfig.isUrl,
             );
-            this.setState({serverIsAlive: true});
+
+            const pwReset = new PasswordReset(serverConfig.hsUrl, serverConfig.isUrl);
+            const serverRequiresIdServer = await pwReset.doesServerRequireIdServerParam();
+
+            this.setState({
+                serverIsAlive: true,
+                serverRequiresIdServer,
+            });
         } catch (e) {
             this.setState(AutoDiscoveryUtils.authComponentStateForError(e, "forgot_password"));
         }
@@ -254,6 +263,22 @@ module.exports = React.createClass({
             >
                 {_t('Change')}
             </a>;
+        }
+
+        if (!this.props.serverConfig.isUrl && this.state.serverRequiresIdServer) {
+            return <div>
+                <h3>
+                    {yourMatrixAccountText}
+                    {editLink}
+                </h3>
+                {_t(
+                    "No identity server is configured: " +
+                    "add one in server settings to reset your password.",
+                )}
+                <a className="mx_AuthBody_changeFlow" onClick={this.onLoginClick} href="#">
+                    {_t('Sign in instead')}
+                </a>
+            </div>;
         }
 
         return <div>

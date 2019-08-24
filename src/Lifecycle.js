@@ -35,6 +35,7 @@ import { sendLoginRequest } from "./Login";
 import * as StorageManager from './utils/StorageManager';
 import SettingsStore from "./settings/SettingsStore";
 import TypingStore from "./stores/TypingStore";
+import {IntegrationManagers} from "./integrations/IntegrationManagers";
 
 /**
  * Called at startup, to attempt to build a logged-in Matrix session. It tries
@@ -81,7 +82,7 @@ export async function loadSession(opts) {
         const fragmentQueryParams = opts.fragmentQueryParams || {};
         const defaultDeviceDisplayName = opts.defaultDeviceDisplayName;
 
-        if (!guestHsUrl) {
+        if (enableGuest && !guestHsUrl) {
             console.warn("Cannot enable guest access: can't determine HS URL to use");
             enableGuest = false;
         }
@@ -251,7 +252,7 @@ function _registerAsGuest(hsUrl, isUrl, defaultDeviceDisplayName) {
  */
 export function getLocalStorageSessionVars() {
     const hsUrl = localStorage.getItem("mx_hs_url");
-    const isUrl = localStorage.getItem("mx_is_url") || 'https://matrix.org';
+    const isUrl = localStorage.getItem("mx_is_url");
     const accessToken = localStorage.getItem("mx_access_token");
     const userId = localStorage.getItem("mx_user_id");
     const deviceId = localStorage.getItem("mx_device_id");
@@ -479,7 +480,9 @@ class AbortLoginAndRebuildStorage extends Error { }
 
 function _persistCredentialsToLocalStorage(credentials) {
     localStorage.setItem("mx_hs_url", credentials.homeserverUrl);
-    localStorage.setItem("mx_is_url", credentials.identityServerUrl);
+    if (credentials.identityServerUrl) {
+        localStorage.setItem("mx_is_url", credentials.identityServerUrl);
+    }
     localStorage.setItem("mx_user_id", credentials.userId);
     localStorage.setItem("mx_access_token", credentials.accessToken);
     localStorage.setItem("mx_is_guest", JSON.stringify(credentials.guest));
@@ -578,6 +581,7 @@ async function startMatrixClient(startSyncing=true) {
         Presence.start();
     }
     DMRoomMap.makeShared().start();
+    IntegrationManagers.sharedInstance().startWatching();
     ActiveWidgetStore.start();
 
     if (startSyncing) {
@@ -636,6 +640,7 @@ export function stopMatrixClient(unsetClient=true) {
     TypingStore.sharedInstance().reset();
     Presence.stop();
     ActiveWidgetStore.stop();
+    IntegrationManagers.sharedInstance().stopWatching();
     if (DMRoomMap.shared()) DMRoomMap.shared().stop();
     const cli = MatrixClientPeg.get();
     if (cli) {

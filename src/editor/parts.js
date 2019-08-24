@@ -312,7 +312,7 @@ class UserPillPart extends PillPart {
 
     serialize() {
         const obj = super.serialize();
-        obj.userId = this.resourceId;
+        obj.resourceId = this.resourceId;
         return obj;
     }
 }
@@ -325,7 +325,7 @@ class PillCandidatePart extends PlainPart {
     }
 
     createAutoComplete(updateCallback) {
-        return this._autoCompleteCreator(updateCallback);
+        return this._autoCompleteCreator.create(updateCallback);
     }
 
     acceptsInsertion(chr, i) {
@@ -363,10 +363,14 @@ export function autoCompleteCreator(getAutocompleterComponent, updateQuery) {
 }
 
 export class PartCreator {
-    constructor(autoCompleteCreator, room, client) {
+    constructor(room, client, autoCompleteCreator = null) {
         this._room = room;
         this._client = client;
-        this._autoCompleteCreator = autoCompleteCreator(this);
+        this._autoCompleteCreator = {create: autoCompleteCreator && autoCompleteCreator(this)};
+    }
+
+    setAutoCompleteCreator(autoCompleteCreator) {
+        this._autoCompleteCreator.create = autoCompleteCreator(this);
     }
 
     createPartForInput(input) {
@@ -399,7 +403,7 @@ export class PartCreator {
             case "room-pill":
                 return this.roomPill(part.text);
             case "user-pill":
-                return this.userPill(part.text, part.userId);
+                return this.userPill(part.text, part.resourceId);
         }
     }
 
@@ -437,3 +441,33 @@ export class PartCreator {
     }
 }
 
+// part creator that support auto complete for /commands,
+// used in SendMessageComposer
+export class CommandPartCreator extends PartCreator {
+    createPartForInput(text, partIndex) {
+        // at beginning and starts with /? create
+        if (partIndex === 0 && text[0] === "/") {
+            return new CommandPart("", this._autoCompleteCreator);
+        } else {
+            return super.createPartForInput(text, partIndex);
+        }
+    }
+
+    deserializePart(part) {
+        if (part.type === "command") {
+            return new CommandPart(part.text, this._autoCompleteCreator);
+        } else {
+            return super.deserializePart(part);
+        }
+    }
+}
+
+class CommandPart extends PillCandidatePart {
+    acceptsInsertion(chr, i) {
+        return PlainPart.prototype.acceptsInsertion.call(this, chr, i);
+    }
+
+    get type() {
+        return "command";
+    }
+}

@@ -1,5 +1,6 @@
 /*
 Copyright 2019 New Vector Ltd
+Copyright 2019 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,14 +17,14 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import {_t} from "../../../languageHandler";
-import MatrixClientPeg from "../../../MatrixClientPeg";
-import Field from "../elements/Field";
-import AccessibleButton from "../elements/AccessibleButton";
-import * as Email from "../../../email";
-import AddThreepid from "../../../AddThreepid";
-const sdk = require('../../../index');
-const Modal = require("../../../Modal");
+import {_t} from "../../../../languageHandler";
+import MatrixClientPeg from "../../../../MatrixClientPeg";
+import Field from "../../elements/Field";
+import AccessibleButton from "../../elements/AccessibleButton";
+import * as Email from "../../../../email";
+import AddThreepid from "../../../../AddThreepid";
+const sdk = require('../../../../index');
+const Modal = require("../../../../Modal");
 
 /*
 TODO: Improve the UX for everything in here.
@@ -86,15 +87,15 @@ export class ExistingEmailAddress extends React.Component {
             return (
                 <div className="mx_ExistingEmailAddress">
                     <span className="mx_ExistingEmailAddress_promptText">
-                        {_t("Are you sure?")}
+                        {_t("Remove %(email)s?", {email: this.props.email.address} )}
                     </span>
-                    <AccessibleButton onClick={this._onActuallyRemove} kind="primary_sm"
+                    <AccessibleButton onClick={this._onActuallyRemove} kind="danger_sm"
                                       className="mx_ExistingEmailAddress_confirmBtn">
-                        {_t("Yes")}
+                        {_t("Remove")}
                     </AccessibleButton>
-                    <AccessibleButton onClick={this._onDontRemove} kind="danger_sm"
+                    <AccessibleButton onClick={this._onDontRemove} kind="link_sm"
                                       className="mx_ExistingEmailAddress_confirmBtn">
-                        {_t("No")}
+                        {_t("Cancel")}
                     </AccessibleButton>
                 </div>
             );
@@ -102,9 +103,10 @@ export class ExistingEmailAddress extends React.Component {
 
         return (
             <div className="mx_ExistingEmailAddress">
-                <img src={require("../../../../res/img/feather-customised/cancel.svg")} width={14} height={14}
-                     onClick={this._onRemove} className="mx_ExistingEmailAddress_delete" alt={_t("Remove")} />
                 <span className="mx_ExistingEmailAddress_email">{this.props.email.address}</span>
+                <AccessibleButton onClick={this._onRemove} kind="danger_sm">
+                    {_t("Remove")}
+                </AccessibleButton>
             </div>
         );
     }
@@ -162,7 +164,7 @@ export default class EmailAddresses extends React.Component {
         const task = new AddThreepid();
         this.setState({verifying: true, continueDisabled: true, addTask: task});
 
-        task.addEmailAddress(email, true).then(() => {
+        task.addEmailAddress(email, false).then(() => {
             this.setState({continueDisabled: false});
         }).catch((err) => {
             console.error("Unable to add email address " + email + " " + err);
