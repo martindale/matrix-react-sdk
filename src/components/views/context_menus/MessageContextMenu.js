@@ -1,6 +1,7 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
 Copyright 2018 New Vector Ltd
+Copyright 2019 Michael Telatynski <7t3chguy@gmail.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +18,7 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
+import createReactClass from 'create-react-class';
 import {EventStatus} from 'matrix-js-sdk';
 
 import MatrixClientPeg from '../../../MatrixClientPeg';
@@ -33,7 +35,7 @@ function canCancel(eventStatus) {
     return eventStatus === EventStatus.QUEUED || eventStatus === EventStatus.NOT_SENT;
 }
 
-module.exports = React.createClass({
+module.exports = createReactClass({
     displayName: 'MessageContextMenu',
 
     propTypes: {
@@ -113,6 +115,14 @@ module.exports = React.createClass({
 
     e2eInfoClicked: function() {
         this.props.e2eInfoCallback();
+        this.closeMenu();
+    },
+
+    onReportEventClick: function() {
+        const ReportEventDialog = sdk.getComponent("dialogs.ReportEventDialog");
+        Modal.createTrackedDialog('Report Event', '', ReportEventDialog, {
+            mxEvent: this.props.mxEvent,
+        }, 'mx_Dialog_reportEvent');
         this.closeMenu();
     },
 
@@ -278,6 +288,8 @@ module.exports = React.createClass({
     },
 
     render: function() {
+        const cli = MatrixClientPeg.get();
+        const me = cli.getUserId();
         const mxEvent = this.props.mxEvent;
         const eventStatus = mxEvent.status;
         const editStatus = mxEvent.replacingEvent() && mxEvent.replacingEvent().status;
@@ -445,6 +457,15 @@ module.exports = React.createClass({
                 </div>;
         }
 
+        let reportEventButton;
+        if (mxEvent.getSender() !== me) {
+            reportEventButton = (
+                <div className="mx_MessageContextMenu_field" onClick={this.onReportEventClick}>
+                    { _t('Report Content') }
+                </div>
+            );
+        }
+
         return (
             <div className="mx_MessageContextMenu">
                 { resendButton }
@@ -463,6 +484,7 @@ module.exports = React.createClass({
                 { externalURLButton }
                 { collapseReplyThread }
                 { e2eInfo }
+                { reportEventButton }
             </div>
         );
     },

@@ -20,6 +20,7 @@ limitations under the License.
 import Promise from 'bluebird';
 
 import React from 'react';
+import createReactClass from 'create-react-class';
 import PropTypes from 'prop-types';
 import Matrix from "matrix-js-sdk";
 
@@ -106,7 +107,7 @@ const ONBOARDING_FLOW_STARTERS = [
     'view_create_group',
 ];
 
-export default React.createClass({
+export default createReactClass({
     // we export this so that the integration tests can use it :-S
     statics: {
         VIEWS: VIEWS,
@@ -285,7 +286,10 @@ export default React.createClass({
         // the first thing to do is to try the token params in the query-string
         // if the session isn't soft logged out (ie: is a clean session being logged in)
         if (!Lifecycle.isSoftLogout()) {
-            Lifecycle.attemptTokenLogin(this.props.realQueryParams).then((loggedIn) => {
+            Lifecycle.attemptTokenLogin(
+                this.props.realQueryParams,
+                this.props.defaultDeviceDisplayName,
+            ).then((loggedIn) => {
                 if (loggedIn) {
                     this.props.onTokenLoginCompleted();
 

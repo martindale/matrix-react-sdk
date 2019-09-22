@@ -71,6 +71,7 @@
 @import "./views/dialogs/_SettingsDialog.scss";
 @import "./views/dialogs/_ShareDialog.scss";
 @import "./views/dialogs/_SlashCommandHelpDialog.scss";
+@import "./views/dialogs/_TabbedIntegrationManagerDialog.scss";
 @import "./views/dialogs/_TermsDialog.scss";
 @import "./views/dialogs/_UnknownDeviceDialog.scss";
 @import "./views/dialogs/_UploadConfirmDialog.scss";
@@ -145,6 +146,7 @@
 @import "./views/rooms/_MemberInfo.scss";
 @import "./views/rooms/_MemberList.scss";
 @import "./views/rooms/_MessageComposer.scss";
+@import "./views/rooms/_MessageComposerFormatBar.scss";
 @import "./views/rooms/_PinnedEventTile.scss";
 @import "./views/rooms/_PinnedEventsPanel.scss";
 @import "./views/rooms/_PresenceLabel.scss";

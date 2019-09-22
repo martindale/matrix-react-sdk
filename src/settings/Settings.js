@@ -121,6 +121,12 @@ export const SETTINGS = {
         supportedLevels: LEVELS_FEATURE,
         default: false,
     },
+    "feature_many_integration_managers": {
+        isFeature: true,
+        displayName: _td("Multiple integration managers"),
+        supportedLevels: LEVELS_FEATURE,
+        default: false,
+    },
     "MessageComposerInput.suggestEmoji": {
         supportedLevels: LEVELS_ACCOUNT_SETTINGS,
         displayName: _td('Enable Emoji suggestions while typing'),
@@ -278,6 +284,14 @@ export const SETTINGS = {
         supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
         default: 200,
     },
+    "readMarkerInViewThresholdMs": {
+        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
+        default: 3000,
+    },
+    "readMarkerOutOfViewThresholdMs": {
+        supportedLevels: LEVELS_DEVICE_ONLY_SETTINGS_WITH_CONFIG,
+        default: 30000,
+    },
     "blacklistUnverifiedDevices": {
         // We specifically want to have room-device > device so that users may set a device default
         // with a per-room override.
@@ -387,5 +401,12 @@ export const SETTINGS = {
         ),
         // This is a tri-state value, where `null` means "prompt the user".
         default: null,
+    },
+    "sendReadReceipts": {
+        supportedLevels: LEVELS_ROOM_SETTINGS,
+        displayName: _td(
+            "Send read receipts for messages (requires compatible homeserver to disable)",
+        ),
+        default: true,
     },
 };

@@ -71,8 +71,20 @@ function parseCodeBlock(n, partCreator) {
     return parts;
 }
 
+function parseHeader(el, partCreator) {
+    const depth = parseInt(el.nodeName.substr(1), 10);
+    return partCreator.plain("#".repeat(depth) + " ");
+}
+
 function parseElement(n, partCreator, state) {
     switch (n.nodeName) {
+        case "H1":
+        case "H2":
+        case "H3":
+        case "H4":
+        case "H5":
+        case "H6":
+            return parseHeader(n, partCreator);
         case "A":
             return parseLink(n, partCreator);
         case "BR":
@@ -220,7 +232,7 @@ function parseHtmlMessage(html, partCreator, isQuotedMessage) {
     return parts;
 }
 
-function parsePlainTextMessage(body, partCreator, isQuotedMessage) {
+export function parsePlainTextMessage(body, partCreator, isQuotedMessage) {
     const lines = body.split("\n");
     const parts = lines.reduce((parts, line, i) => {
         if (isQuotedMessage) {

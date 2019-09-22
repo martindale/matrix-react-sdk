@@ -43,39 +43,42 @@ function inviteMultipleToRoom(roomId, addrs) {
 export function showStartChatInviteDialog() {
     const AddressPickerDialog = sdk.getComponent("dialogs.AddressPickerDialog");
 
-    const validAddressTypes = ['mx-user-id'];
-    if (MatrixClientPeg.get().getIdentityServerUrl()) {
-        validAddressTypes.push('email');
-    }
-
     Modal.createTrackedDialog('Start a chat', '', AddressPickerDialog, {
         title: _t('Start a chat'),
         description: _t("Who would you like to communicate with?"),
-        placeholder: _t("Email, name or Matrix ID"),
-        validAddressTypes,
+        placeholder: (validAddressTypes) => {
+            // The set of valid address type can be mutated inside the dialog
+            // when you first have no IS but agree to use one in the dialog.
+            if (validAddressTypes.includes('email')) {
+                return _t("Email, name or Matrix ID");
+            }
+            return _t("Name or Matrix ID");
+        },
+        validAddressTypes: ['mx-user-id', 'email'],
         button: _t("Start Chat"),
         onFinished: _onStartDmFinished,
-    });
+    }, /*className=*/null, /*isPriority=*/false, /*isStatic=*/true);
 }
 
 export function showRoomInviteDialog(roomId) {
     const AddressPickerDialog = sdk.getComponent("dialogs.AddressPickerDialog");
 
-    const validAddressTypes = ['mx-user-id'];
-    if (MatrixClientPeg.get().getIdentityServerUrl()) {
-        validAddressTypes.push('email');
-    }
-
     Modal.createTrackedDialog('Chat Invite', '', AddressPickerDialog, {
         title: _t('Invite new room members'),
-        description: _t('Who would you like to add to this room?'),
         button: _t('Send Invites'),
-        placeholder: _t("Email, name or Matrix ID"),
-        validAddressTypes,
+        placeholder: (validAddressTypes) => {
+            // The set of valid address type can be mutated inside the dialog
+            // when you first have no IS but agree to use one in the dialog.
+            if (validAddressTypes.includes('email')) {
+                return _t("Email, name or Matrix ID");
+            }
+            return _t("Name or Matrix ID");
+        },
+        validAddressTypes: ['mx-user-id', 'email'],
         onFinished: (shouldInvite, addrs) => {
             _onRoomInviteFinished(roomId, shouldInvite, addrs);
         },
-    });
+    }, /*className=*/null, /*isPriority=*/false, /*isStatic=*/true);
 }
 
 /**

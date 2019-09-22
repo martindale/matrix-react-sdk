@@ -34,6 +34,7 @@ import dis from '../../../dispatcher';
 import ActiveWidgetStore from '../../../stores/ActiveWidgetStore';
 import classNames from 'classnames';
 import {IntegrationManagers} from "../../../integrations/IntegrationManagers";
+import SettingsStore from "../../../settings/SettingsStore";
 
 const ALLOWED_APP_URL_SCHEMES = ['https:', 'http:'];
 const ENABLE_REACT_PERF = false;
@@ -153,10 +154,9 @@ export default class AppTile extends React.Component {
         // Widget action listeners
         dis.unregister(this.dispatcherRef);
 
-        const canPersist = this.props.whitelistCapabilities.includes('m.always_on_screen');
         // if it's not remaining on screen, get rid of the PersistedElement container
-        if (canPersist && !ActiveWidgetStore.getWidgetPersistence(this.props.id)) {
-            ActiveWidgetStore.destroyPersistentWidget();
+        if (!ActiveWidgetStore.getWidgetPersistence(this.props.id)) {
+            ActiveWidgetStore.destroyPersistentWidget(this.props.id);
             const PersistedElement = sdk.getComponent("elements.PersistedElement");
             PersistedElement.destroyElement(this._persistKey);
         }
@@ -264,11 +264,19 @@ export default class AppTile extends React.Component {
             this.props.onEditClick();
         } else {
             // TODO: Open the right manager for the widget
-            IntegrationManagers.sharedInstance().getPrimaryManager().open(
-                this.props.room,
-                'type_' + this.props.type,
-                this.props.id,
-            );
+            if (SettingsStore.isFeatureEnabled("feature_many_integration_managers")) {
+                IntegrationManagers.sharedInstance().openAll(
+                    this.props.room,
+                    'type_' + this.props.type,
+                    this.props.id,
+                );
+            } else {
+                IntegrationManagers.sharedInstance().getPrimaryManager().open(
+                    this.props.room,
+                    'type_' + this.props.type,
+                    this.props.id,
+                );
+            }
         }
     }
 
@@ -442,7 +450,7 @@ export default class AppTile extends React.Component {
         this.setState({hasPermissionToLoad: false});
 
         // Force the widget to be non-persistent
-        ActiveWidgetStore.destroyPersistentWidget();
+        ActiveWidgetStore.destroyPersistentWidget(this.props.id);
         const PersistedElement = sdk.getComponent("elements.PersistedElement");
         PersistedElement.destroyElement(this._persistKey);
     }

@@ -37,6 +37,7 @@ import {Service, startTermsFlow} from "../../../../../Terms";
 import {SERVICE_TYPES} from "matrix-js-sdk";
 import IdentityAuthClient from "../../../../../IdentityAuthClient";
 import {abbreviateUrl} from "../../../../../utils/UrlUtils";
+import { getThreepidsWithBindStatus } from '../../../../../boundThreepids';
 
 export default class GeneralUserSettingsTab extends React.Component {
     static propTypes = {
@@ -50,7 +51,7 @@ export default class GeneralUserSettingsTab extends React.Component {
             language: languageHandler.getCurrentLanguage(),
             theme: SettingsStore.getValueAt(SettingLevel.ACCOUNT, "theme"),
             haveIdServer: Boolean(MatrixClientPeg.get().getIdentityServerUrl()),
-            serverRequiresIdServer: null,
+            serverSupportsSeparateAddAndBind: null,
             idServerHasUnsignedTerms: false,
             requiredPolicyInfo: {       // This object is passed along to a component for handling
                 hasTerms: false,
@@ -58,17 +59,20 @@ export default class GeneralUserSettingsTab extends React.Component {
                 // agreedUrls,          // From the startTermsFlow callback
                 // resolve,             // Promise resolve function for startTermsFlow callback
             },
+            emails: [],
+            msisdns: [],
         };
 
         this.dispatcherRef = dis.register(this._onAction);
     }
 
     async componentWillMount() {
-        const serverRequiresIdServer = await MatrixClientPeg.get().doesServerRequireIdServerParam();
-        this.setState({serverRequiresIdServer});
+        const cli = MatrixClientPeg.get();
 
-        // Check to see if terms need accepting
-        this._checkTerms();
+        const serverSupportsSeparateAddAndBind = await cli.doesServerSupportSeparateAddAndBind();
+        this.setState({serverSupportsSeparateAddAndBind});
+
+        this._getThreepidState();
     }
 
     componentWillUnmount() {
@@ -78,9 +82,30 @@ export default class GeneralUserSettingsTab extends React.Component {
     _onAction = (payload) => {
         if (payload.action === 'id_server_changed') {
             this.setState({haveIdServer: Boolean(MatrixClientPeg.get().getIdentityServerUrl())});
-            this._checkTerms();
+            this._getThreepidState();
         }
     };
+
+    _onEmailsChange = (emails) => {
+        this.setState({ emails });
+    }
+
+    _onMsisdnsChange = (msisdns) => {
+        this.setState({ msisdns });
+    }
+
+    async _getThreepidState() {
+        const cli = MatrixClientPeg.get();
+
+        // Check to see if terms need accepting
+        this._checkTerms();
+
+        // Need to get 3PIDs generally for Account section and possibly also for
+        // Discovery (assuming we have an IS and terms are agreed).
+        const threepids = await getThreepidsWithBindStatus(cli);
+        this.setState({ emails: threepids.filter((a) => a.medium === 'email') });
+        this.setState({ msisdns: threepids.filter((a) => a.medium === 'msisdn') });
+    }
 
     async _checkTerms() {
         if (!this.state.haveIdServer) {
@@ -91,7 +116,7 @@ export default class GeneralUserSettingsTab extends React.Component {
         // By starting the terms flow we get the logic for checking which terms the user has signed
         // for free. So we might as well use that for our own purposes.
         const authClient = new IdentityAuthClient();
-        const idAccessToken = await authClient.getAccessToken(/*check=*/false);
+        const idAccessToken = await authClient.getAccessToken({ check: false });
         startTermsFlow([new Service(
             SERVICE_TYPES.IS,
             MatrixClientPeg.get().getIdentityServerUrl(),
@@ -197,15 +222,26 @@ export default class GeneralUserSettingsTab extends React.Component {
 
         let threepidSection = null;
 
-        if (this.state.haveIdServer || this.state.serverRequiresIdServer === false) {
+        // For older homeservers without separate 3PID add and bind methods (MSC2290),
+        // we use a combo add with bind option API which requires an identity server to
+        // validate 3PID ownership even if we're just adding to the homeserver only.
+        // For newer homeservers with separate 3PID add and bind methods (MSC2290),
+        // there is no such concern, so we can always show the HS account 3PIDs.
+        if (this.state.haveIdServer || this.state.serverSupportsSeparateAddAndBind === true) {
             threepidSection = <div>
                 <span className="mx_SettingsTab_subheading">{_t("Email addresses")}</span>
-                <EmailAddresses />
+                <EmailAddresses
+                    emails={this.state.emails}
+                    onEmailsChange={this._onEmailsChange}
+                />
 
                 <span className="mx_SettingsTab_subheading">{_t("Phone numbers")}</span>
-                <PhoneNumbers />
+                <PhoneNumbers
+                    msisdns={this.state.msisdns}
+                    onMsisdnsChange={this._onMsisdnsChange}
+                />
             </div>;
-        } else if (this.state.serverRequiresIdServer === null) {
+        } else if (this.state.serverSupportsSeparateAddAndBind === null) {
             threepidSection = <Spinner />;
         }
 
@@ -249,6 +285,8 @@ export default class GeneralUserSettingsTab extends React.Component {
     }
 
     _renderDiscoverySection() {
+        const SetIdServer = sdk.getComponent("views.settings.SetIdServer");
+
         if (this.state.requiredPolicyInfo.hasTerms) {
             const InlineTermsAgreement = sdk.getComponent("views.terms.InlineTermsAgreement");
             const intro = <span className="mx_SettingsTab_subsectionText">
@@ -258,24 +296,29 @@ export default class GeneralUserSettingsTab extends React.Component {
                     {serverName: this.state.idServerName},
                 )}
             </span>;
-            return <InlineTermsAgreement
-                policiesAndServicePairs={this.state.requiredPolicyInfo.policiesAndServices}
-                agreedUrls={this.state.requiredPolicyInfo.agreedUrls}
-                onFinished={this.state.requiredPolicyInfo.resolve}
-                introElement={intro}
-            />;
+            return (
+                <div>
+                    <InlineTermsAgreement
+                        policiesAndServicePairs={this.state.requiredPolicyInfo.policiesAndServices}
+                        agreedUrls={this.state.requiredPolicyInfo.agreedUrls}
+                        onFinished={this.state.requiredPolicyInfo.resolve}
+                        introElement={intro}
+                    />
+                    { /* has its own heading as it includes the current ID server */ }
+                    <SetIdServer missingTerms={true} />
+                </div>
+            );
         }
 
         const EmailAddresses = sdk.getComponent("views.settings.discovery.EmailAddresses");
         const PhoneNumbers = sdk.getComponent("views.settings.discovery.PhoneNumbers");
-        const SetIdServer = sdk.getComponent("views.settings.SetIdServer");
 
         const threepidSection = this.state.haveIdServer ? <div className='mx_GeneralUserSettingsTab_discovery'>
             <span className="mx_SettingsTab_subheading">{_t("Email addresses")}</span>
-            <EmailAddresses />
+            <EmailAddresses emails={this.state.emails} />
 
             <span className="mx_SettingsTab_subheading">{_t("Phone numbers")}</span>
-            <PhoneNumbers />
+            <PhoneNumbers msisdns={this.state.msisdns} />
         </div> : null;
 
         return (
