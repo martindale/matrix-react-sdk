@@ -678,10 +678,6 @@ module.exports = createReactClass({
             <span className="mx_EventTile_replyButton" title={_t("Reply")} onClick={this.onReplyClicked} />
         );
 
-        const replyButton = (
-            <span className="mx_EventTile_replyButton" title={_t("Reply")} onClick={this.onReplyClicked} />
-        );
-
         const timestamp = this.props.mxEvent.getTs() ?
             <MessageTimestamp showTwelveHour={this.props.isTwelveHour} ts={this.props.mxEvent.getTs()} /> : null;
 
