@@ -322,6 +322,38 @@ module.exports = createReactClass({
         return actions.tweaks.highlight;
     },
 
+    onEditClicked: function(e) {
+        const MessageContextMenu = sdk.getComponent('context_menus.MessageContextMenu');
+        const buttonRect = e.target.getBoundingClientRect();
+
+        // The window X and Y offsets are to adjust position when zoomed in to page
+        const x = buttonRect.right + window.pageXOffset;
+        const y = (buttonRect.top + (buttonRect.height / 2) + window.pageYOffset) - 19;
+        const self = this;
+
+        const {tile, replyThread} = this.refs;
+
+        ContextualMenu.createMenu(MessageContextMenu, {
+            chevronOffset: 10,
+            mxEvent: this.props.mxEvent,
+            left: x,
+            top: y,
+            eventTileOps: tile && tile.getEventTileOps ? tile.getEventTileOps() : undefined,
+            collapseReplyThread: replyThread && replyThread.canCollapse() ? replyThread.collapse : undefined,
+            onFinished: function() {
+                self.setState({menu: false});
+            },
+        });
+        this.setState({menu: true});
+    },
+
+    onReplyClicked: function(e) {
+        dis.dispatch({
+            action: 'reply_to_event',
+            event: this.props.mxEvent,
+        });
+    },
+
     toggleAllReadAvatars: function() {
         this.setState({
             allReadAvatars: !this.state.allReadAvatars,
@@ -641,6 +673,10 @@ module.exports = createReactClass({
             getReplyThread={this.getReplyThread}
             onFocusChange={this.onActionBarFocusChange}
         /> : undefined;
+
+        const replyButton = (
+            <span className="mx_EventTile_replyButton" title={_t("Reply")} onClick={this.onReplyClicked} />
+        );
 
         const replyButton = (
             <span className="mx_EventTile_replyButton" title={_t("Reply")} onClick={this.onReplyClicked} />
