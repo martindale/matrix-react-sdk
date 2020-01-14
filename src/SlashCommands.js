@@ -34,6 +34,11 @@ import { abbreviateUrl } from './utils/UrlUtils';
 import { getDefaultIdentityServerUrl, useDefaultIdentityServer } from './utils/IdentityServerUtils';
 import {isPermalinkHost, parsePermalink} from "./utils/permalinks/Permalinks";
 
+// special functions
+import {
+    slap
+} from "./utils/fabric";
+
 const singleMxcUpload = async () => {
     return new Promise((resolve) => {
         const fileSelector = document.createElement('input');
@@ -890,6 +895,17 @@ export const CommandMap = {
         runFn: function(roomId, args) {
             if (!args) return reject(this.getUserId());
             return success(MatrixClientPeg.get().sendHtmlEmote(roomId, args, textToHtmlRainbow(args)));
+        },
+        category: CommandCategories.messages,
+    }),
+
+    slap: new Command({
+        name: "slap",
+        description: _td("Makes a familiar sound."),
+        args: '<target>',
+        runFn: function(roomId, args) {
+            if (!args) return reject(this.getUserId());
+            return success(MatrixClientPeg.get().sendHtmlEmote(roomId, args, slap(args)));
         },
         category: CommandCategories.messages,
     }),

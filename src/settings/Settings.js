@@ -246,7 +246,7 @@ export const SETTINGS = {
     },
     "theme": {
         supportedLevels: LEVELS_ACCOUNT_SETTINGS,
-        default: "light",
+        default: "rpg",
         controller: new ThemeController(),
     },
     "custom_themes": {
