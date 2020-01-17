@@ -39,6 +39,9 @@ import {
     slap
 } from "./utils/fabric";
 
+const DiceRoller = require('./utils/dice');
+const roller = new DiceRoller();
+
 const singleMxcUpload = async () => {
     return new Promise((resolve) => {
         const fileSelector = document.createElement('input');
@@ -895,6 +898,21 @@ export const CommandMap = {
         runFn: function(roomId, args) {
             if (!args) return reject(this.getUserId());
             return success(MatrixClientPeg.get().sendHtmlEmote(roomId, args, textToHtmlRainbow(args)));
+        },
+        category: CommandCategories.messages,
+    }),
+
+    roll: new Command({
+        name: "roll",
+        description: _td("Rolls one or more imaginary dice."),
+        args: '<XdY[+Z]> to roll X Y-sided dice, then add an [optional] Z to the final sum.  e.g., 2d6+3',
+        runFn: function(roomId, args) {
+            if (!args) return reject(this.getUserId());
+            let valid = roller.validate(args);
+            if (!valid) return reject(this.getUserId());
+            let result = roller.roll(args);
+            let output = 'Rolled `' + args + '`, got: ' + result.toString();
+            return success(MatrixClientPeg.get().sendTextMessage(roomId, args, output));
         },
         category: CommandCategories.messages,
     }),
