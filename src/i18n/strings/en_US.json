@@ -112,7 +112,7 @@
     "Email": "Email",
     "Email address": "Email address",
     "Email address (optional)": "Email address (optional)",
-    "Email, name or matrix ID": "Email, name or matrix ID",
+    "Email, name or matrix ID": "Your <strong>all-lowercase</strong> RPG username",
     "Emoji": "Emoji",
     "Enable encryption": "Enable encryption",
     "Encrypted messages will not be visible on clients that do not yet implement encryption": "Encrypted messages will not be visible on clients that do not yet implement encryption",
