@@ -158,7 +158,7 @@ export default class BugReportDialog extends React.Component {
                             {
                                 a: (sub) => <a
                                     target="_blank"
-                                    href="https://github.com/vector-im/riot-web/issues/new"
+                                    href="https://github.com/RolePlayGateway/chat.roleplaygateway.com/issues/new"
                                 >
                                     { sub }
                                 </a>,
@@ -172,7 +172,7 @@ export default class BugReportDialog extends React.Component {
                         label={_t("GitHub issue")}
                         onChange={this._onIssueUrlChange}
                         value={this.state.issueUrl}
-                        placeholder="https://github.com/vector-im/riot-web/issues/..."
+                        placeholder="https://github.com/RolePlayGateway/chat.roleplaygateway.com/issues/..."
                     />
                     <Field
                         id="mx_BugReportDialog_notes"
