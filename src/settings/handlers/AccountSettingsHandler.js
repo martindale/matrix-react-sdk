@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import MatrixClientPeg from '../../MatrixClientPeg';
+import {MatrixClientPeg} from '../../MatrixClientPeg';
 import MatrixClientBackedSettingsHandler from "./MatrixClientBackedSettingsHandler";
 import {SettingLevel} from "../SettingsStore";
 
@@ -126,6 +126,7 @@ export default class AccountSettingsHandler extends MatrixClientBackedSettingsHa
             if (!content || !content['recent_rooms']) {
                 content = this._getSettings(BREADCRUMBS_LEGACY_EVENT_TYPE);
             }
+            if (!content) content = {}; // If we still don't have content, make some
 
             content['recent_rooms'] = newValue;
             return MatrixClientPeg.get().setAccountData(BREADCRUMBS_EVENT_TYPE, content);

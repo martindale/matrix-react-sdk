@@ -20,12 +20,13 @@ import React from 'react';
 import createReactClass from 'create-react-class';
 import PropTypes from 'prop-types';
 import {_t, _td} from '../../../languageHandler';
-import sdk from '../../../index';
+import * as sdk from '../../../index';
 import Login from '../../../Login';
 import SdkConfig from '../../../SdkConfig';
 import { messageForResourceLimitError } from '../../../utils/ErrorUtils';
 import AutoDiscoveryUtils, {ValidatedServerConfig} from "../../../utils/AutoDiscoveryUtils";
 import classNames from "classnames";
+import AuthPage from "../../views/auth/AuthPage";
 
 // For validating phone numbers without country codes
 const PHONE_NUMBER_REGEX = /^[0-9()\-\s]*$/;
@@ -53,10 +54,15 @@ _td("General failure");
 /**
  * A wire component which glues together login UI components and Login logic
  */
-module.exports = createReactClass({
+export default createReactClass({
     displayName: 'Login',
 
     propTypes: {
+        // Called when the user has logged in. Params:
+        // - The object returned by the login API
+        // - The user's password, if applicable, (may be cached in memory for a
+        //   short time so the user is not required to re-enter their password
+        //   for operations like uploading cross-signing keys).
         onLoggedIn: PropTypes.func.isRequired,
 
         // If true, the component will consider itself busy.
@@ -180,7 +186,7 @@ module.exports = createReactClass({
             username, phoneCountry, phoneNumber, password,
         ).then((data) => {
             this.setState({serverIsAlive: true}); // it must be, we logged in.
-            this.props.onLoggedIn(data);
+            this.props.onLoggedIn(data, password);
         }, (error) => {
             if (this._unmounted) {
                 return;
@@ -253,7 +259,7 @@ module.exports = createReactClass({
             this.setState({
                 busy: false,
             });
-        }).done();
+        });
     },
 
     onUsernameChanged: function(username) {
@@ -378,15 +384,30 @@ module.exports = createReactClass({
 
         // Do a quick liveliness check on the URLs
         try {
-            await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(hsUrl, isUrl);
-            this.setState({serverIsAlive: true, errorText: ""});
+            const { warning } =
+                await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(hsUrl, isUrl);
+            if (warning) {
+                this.setState({
+                    ...AutoDiscoveryUtils.authComponentStateForError(warning),
+                    errorText: "",
+                });
+            } else {
+                this.setState({
+                    serverIsAlive: true,
+                    errorText: "",
+                });
+            }
         } catch (e) {
             this.setState({
                 busy: false,
                 ...AutoDiscoveryUtils.authComponentStateForError(e),
             });
             if (this.state.serverErrorIsFatal) {
-                return; // Server is dead - do not continue.
+                // Server is dead: show server details prompt instead
+                this.setState({
+                    phase: PHASE_SERVER_DETAILS,
+                });
+                return;
             }
         }
 
@@ -424,7 +445,7 @@ module.exports = createReactClass({
             this.setState({
                 busy: false,
             });
-        }).done();
+        });
     },
 
     _isSupportedFlow: function(flow) {
@@ -593,7 +614,6 @@ module.exports = createReactClass({
 
     render: function() {
         const Loader = sdk.getComponent("elements.Spinner");
-        const AuthPage = sdk.getComponent("auth.AuthPage");
         const AuthHeader = sdk.getComponent("auth.AuthHeader");
         const AuthBody = sdk.getComponent("auth.AuthBody");
         const loader = this.isBusy() ? <div className="mx_Login_loader"><Loader /></div> : null;

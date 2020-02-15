@@ -16,9 +16,9 @@ limitations under the License.
 
 import { createClient, SERVICE_TYPES } from 'matrix-js-sdk';
 
-import MatrixClientPeg from './MatrixClientPeg';
+import {MatrixClientPeg} from './MatrixClientPeg';
 import Modal from './Modal';
-import sdk from './index';
+import * as sdk from './index';
 import { _t } from './languageHandler';
 import { Service, startTermsFlow, TermsNotSignedError } from './Terms';
 import {
@@ -183,8 +183,10 @@ export default class IdentityAuthClient {
     async registerForToken(check=true) {
         try {
             const hsOpenIdToken = await MatrixClientPeg.get().getOpenIdToken();
-            const { access_token: identityAccessToken } =
+            // XXX: The spec is `token`, but we used `access_token` for a Sydent release.
+            const { access_token: accessToken, token } =
                 await this._matrixClient.registerWithIdentityServer(hsOpenIdToken);
+            const identityAccessToken = token ? token : accessToken;
             if (check) await this._checkToken(identityAccessToken);
             return identityAccessToken;
         } catch (e) {

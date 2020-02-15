@@ -17,17 +17,17 @@ limitations under the License.
 */
 
 import pako from 'pako';
-import Promise from 'bluebird';
 
-import MatrixClientPeg from '../MatrixClientPeg';
+import {MatrixClientPeg} from '../MatrixClientPeg';
 import PlatformPeg from '../PlatformPeg';
 import { _t } from '../languageHandler';
 
-import rageshake from './rageshake';
+import * as rageshake from './rageshake';
 
 
 // polyfill textencoder if necessary
 import * as TextEncodingUtf8 from 'text-encoding-utf-8';
+import SettingsStore from "../settings/SettingsStore";
 let TextEncoder = window.TextEncoder;
 if (!TextEncoder) {
     TextEncoder = TextEncodingUtf8.TextEncoder;
@@ -67,6 +67,18 @@ export default async function sendBugReport(bugReportEndpoint, opts) {
         userAgent = window.navigator.userAgent;
     }
 
+    let installedPWA = "UNKNOWN";
+    try {
+        // Known to work at least for desktop Chrome
+        installedPWA = window.matchMedia('(display-mode: standalone)').matches;
+    } catch (e) { }
+
+    let touchInput = "UNKNOWN";
+    try {
+        // MDN claims broad support across browsers
+        touchInput = window.matchMedia('(pointer: coarse)').matches;
+    } catch (e) { }
+
     const client = MatrixClientPeg.get();
 
     console.log("Sending bug report.");
@@ -76,6 +88,8 @@ export default async function sendBugReport(bugReportEndpoint, opts) {
     body.append('app', 'riot-web');
     body.append('version', version);
     body.append('user_agent', userAgent);
+    body.append('installed_pwa', installedPWA);
+    body.append('touch_input', touchInput);
 
     if (client) {
         body.append('user_id', client.credentials.userId);
@@ -84,6 +98,12 @@ export default async function sendBugReport(bugReportEndpoint, opts) {
 
     if (opts.label) {
         body.append('label', opts.label);
+    }
+
+    // add labs options
+    const enabledLabs = SettingsStore.getLabsFeatures().filter(SettingsStore.isFeatureEnabled);
+    if (enabledLabs.length) {
+        body.append('enabled_labs', enabledLabs.join(', '));
     }
 
     if (opts.sendLogs) {
@@ -105,26 +125,22 @@ export default async function sendBugReport(bugReportEndpoint, opts) {
 }
 
 function _submitReport(endpoint, body, progressCallback) {
-    const deferred = Promise.defer();
-
-    const req = new XMLHttpRequest();
-    req.open("POST", endpoint);
-    req.timeout = 5 * 60 * 1000;
-    req.onreadystatechange = function() {
-        if (req.readyState === XMLHttpRequest.LOADING) {
-            progressCallback(_t("Waiting for response from server"));
-        } else if (req.readyState === XMLHttpRequest.DONE) {
-            on_done();
-        }
-    };
-    req.send(body);
-    return deferred.promise;
-
-    function on_done() {
-        if (req.status < 200 || req.status >= 400) {
-            deferred.reject(new Error(`HTTP ${req.status}`));
-            return;
-        }
-        deferred.resolve();
-    }
+    return new Promise((resolve, reject) => {
+        const req = new XMLHttpRequest();
+        req.open("POST", endpoint);
+        req.timeout = 5 * 60 * 1000;
+        req.onreadystatechange = function() {
+            if (req.readyState === XMLHttpRequest.LOADING) {
+                progressCallback(_t("Waiting for response from server"));
+            } else if (req.readyState === XMLHttpRequest.DONE) {
+                // on done
+                if (req.status < 200 || req.status >= 400) {
+                    reject(new Error(`HTTP ${req.status}`));
+                    return;
+                }
+                resolve();
+            }
+        };
+        req.send(body);
+    });
 }

@@ -41,6 +41,14 @@ export function htmlSerializeIfNeeded(model, {forceHTML = false} = {}) {
     if (!parser.isPlainText() || forceHTML) {
         return parser.toHTML();
     }
+    // Format "plain" text to ensure removal of backslash escapes
+    // https://github.com/vector-im/riot-web/issues/11230
+    // https://github.com/vector-im/riot-web/issues/2870
+    const postParsePlaintext = parser.toPlaintext();
+    if (postParsePlaintext !== md) {
+        // only return "formatted" text if it differs from the source text
+        return postParsePlaintext;
+    }
 }
 
 export function textSerialize(model) {
@@ -61,18 +69,26 @@ export function textSerialize(model) {
 }
 
 export function containsEmote(model) {
+    return startsWith(model, "/me ");
+}
+
+export function startsWith(model, prefix) {
     const firstPart = model.parts[0];
     // part type will be "plain" while editing,
     // and "command" while composing a message.
     return firstPart &&
         (firstPart.type === "plain" || firstPart.type === "command") &&
-        firstPart.text.startsWith("/me ");
+        firstPart.text.startsWith(prefix);
 }
 
 export function stripEmoteCommand(model) {
     // trim "/me "
+    return stripPrefix(model, "/me ");
+}
+
+export function stripPrefix(model, prefix) {
     model = model.clone();
-    model.removeText({index: 0, offset: 0}, 4);
+    model.removeText({index: 0, offset: 0}, prefix.length);
     return model;
 }
 

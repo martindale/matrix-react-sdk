@@ -1,5 +1,6 @@
 /*
 Copyright 2018 New Vector Ltd
+Copyright 2019 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -52,9 +53,10 @@ module.exports = async function changeRoomSettings(session, settings) {
     if (settings.alias) {
         session.log.step(`sets alias to ${settings.alias}`);
         const aliasField = await session.query(".mx_RoomSettingsDialog .mx_AliasSettings input[type=text]");
-        await session.replaceInputText(aliasField, settings.alias);
+        await session.replaceInputText(aliasField, settings.alias.substring(1, settings.alias.lastIndexOf(":")));
         const addButton = await session.query(".mx_RoomSettingsDialog .mx_AliasSettings .mx_AccessibleButton");
         await addButton.click();
+        await session.delay(10); // delay to give time for the validator to run and check the alias
         session.log.done();
     }
 

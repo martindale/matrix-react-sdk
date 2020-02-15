@@ -1,5 +1,6 @@
 /*
 Copyright 2015, 2016 OpenMarket Ltd
+Copyright 2019, 2020 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,14 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import MatrixClientPeg from './MatrixClientPeg';
+import {MatrixClientPeg} from './MatrixClientPeg';
 import Modal from './Modal';
-import sdk from './index';
+import * as sdk from './index';
 import { _t } from './languageHandler';
 import dis from "./dispatcher";
 import * as Rooms from "./Rooms";
-
-import Promise from 'bluebird';
+import DMRoomMap from "./utils/DMRoomMap";
 import {getAddressType} from "./UserAddress";
 
 /**
@@ -32,13 +32,19 @@ import {getAddressType} from "./UserAddress";
  * @param {object=} opts.createOpts set of options to pass to createRoom call.
  * @param {bool=} opts.spinner True to show a modal spinner while the room is created.
  *     Default: True
+ * @param {bool=} opts.guestAccess Whether to enable guest access.
+ *     Default: True
+ * @param {bool=} opts.encryption Whether to enable encryption.
+ *     Default: False
  *
  * @returns {Promise} which resolves to the room id, or null if the
  * action was aborted or failed.
  */
-function createRoom(opts) {
+export default function createRoom(opts) {
     opts = opts || {};
     if (opts.spinner === undefined) opts.spinner = true;
+    if (opts.guestAccess === undefined) opts.guestAccess = true;
+    if (opts.encryption === undefined) opts.encryption = false;
 
     const ErrorDialog = sdk.getComponent("dialogs.ErrorDialog");
     const Loader = sdk.getComponent("elements.Spinner");
@@ -77,18 +83,30 @@ function createRoom(opts) {
         opts.andView = true;
     }
 
+    createOpts.initial_state = createOpts.initial_state || [];
+
     // Allow guests by default since the room is private and they'd
     // need an invite. This means clicking on a 3pid invite email can
     // actually drop you right in to a chat.
-    createOpts.initial_state = createOpts.initial_state || [
-        {
+    if (opts.guestAccess) {
+        createOpts.initial_state.push({
+            type: 'm.room.guest_access',
+            state_key: '',
             content: {
                 guest_access: 'can_join',
             },
-            type: 'm.room.guest_access',
+        });
+    }
+
+    if (opts.encryption) {
+        createOpts.initial_state.push({
+            type: 'm.room.encryption',
             state_key: '',
-        },
-    ];
+            content: {
+                algorithm: 'm.megolm.v1.aes-sha2',
+            },
+        });
+    }
 
     let modal;
     if (opts.spinner) modal = Modal.createDialog(Loader, null, 'mx_Dialog_spinner');
@@ -141,4 +159,28 @@ function createRoom(opts) {
     });
 }
 
-module.exports = createRoom;
+export function findDMForUser(client, userId) {
+    const roomIds = DMRoomMap.shared().getDMRoomsForUserId(userId);
+    const rooms = roomIds.map(id => client.getRoom(id));
+    const suitableDMRooms = rooms.filter(r => {
+        if (r && r.getMyMembership() === "join") {
+            const member = r.getMember(userId);
+            return member && (member.membership === "invite" || member.membership === "join");
+        }
+        return false;
+    });
+    if (suitableDMRooms.length) {
+        return suitableDMRooms[0];
+    }
+}
+
+export async function ensureDMExists(client, userId) {
+    const existingDMRoom = findDMForUser(client, userId);
+    let roomId;
+    if (existingDMRoom) {
+        roomId = existingDMRoom.roomId;
+    } else {
+        roomId = await createRoom({dmUserId: userId, spinner: false, andView: false});
+    }
+    return roomId;
+}

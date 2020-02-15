@@ -1,5 +1,6 @@
 /*
 Copyright 2018 New Vector Ltd
+Copyright 2019 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,7 +62,7 @@ module.exports = async function signup(session, username, password, homeserver) 
     await session.query(".mx_Field_valid #mx_RegistrationForm_password");
     //check no errors
     const errorText = await session.tryGetInnertext('.mx_Login_error');
-    assert.strictEqual(!!errorText, false);
+    assert.strictEqual(errorText, null);
     //submit form
     //await page.screenshot({path: "beforesubmit.png", fullPage: true});
     await registerButton.click();

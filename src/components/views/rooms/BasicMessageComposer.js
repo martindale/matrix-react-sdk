@@ -34,11 +34,11 @@ import {parsePlainTextMessage} from '../../../editor/deserialize';
 import {renderModel} from '../../../editor/render';
 import {Room} from 'matrix-js-sdk';
 import TypingStore from "../../../stores/TypingStore";
-import EMOJIBASE from 'emojibase-data/en/compact.json';
 import SettingsStore from "../../../settings/SettingsStore";
 import EMOTICON_REGEX from 'emojibase-regex/emoticon';
-import sdk from '../../../index';
+import * as sdk from '../../../index';
 import {Key} from "../../../Keyboard";
+import {EMOTICON_TO_EMOJI} from "../../../emoji";
 
 const REGEX_EMOTICON_WHITESPACE = new RegExp('(?:^|\\s)(' + EMOTICON_REGEX.source + ')\\s$');
 
@@ -80,8 +80,8 @@ export default class BasicMessageEditor extends React.Component {
         initialCaret: PropTypes.object, // See DocumentPosition in editor/model.js
     };
 
-    constructor(props, context) {
-        super(props, context);
+    constructor(props) {
+        super(props);
         this.state = {
             autoComplete: null,
         };
@@ -92,6 +92,17 @@ export default class BasicMessageEditor extends React.Component {
         this._isIMEComposing = false;
         this._hasTextSelected = false;
         this._emoticonSettingHandle = null;
+    }
+
+    componentDidUpdate(prevProps) {
+        if (this.props.placeholder !== prevProps.placeholder && this.props.placeholder) {
+            const {isEmpty} = this.props.model;
+            if (isEmpty) {
+                this._showPlaceholder();
+            } else {
+                this._hidePlaceholder();
+            }
+        }
     }
 
     _replaceEmoticon = (caretPosition, inputType, diff) => {
@@ -107,8 +118,10 @@ export default class BasicMessageEditor extends React.Component {
         });
         const emoticonMatch = REGEX_EMOTICON_WHITESPACE.exec(range.text);
         if (emoticonMatch) {
-            const query = emoticonMatch[1].toLowerCase().replace("-", "");
-            const data = EMOJIBASE.find(e => e.emoticon ? e.emoticon.toLowerCase() === query : false);
+            const query = emoticonMatch[1].replace("-", "");
+            // try both exact match and lower-case, this means that xd won't match xD but :P will match :p
+            const data = EMOTICON_TO_EMOJI.get(query) || EMOTICON_TO_EMOJI.get(query.toLowerCase());
+
             if (data) {
                 const {partCreator} = model;
                 const hasPrecedingSpace = emoticonMatch[0][0] === " ";
@@ -199,17 +212,49 @@ export default class BasicMessageEditor extends React.Component {
         return !!(this._isIMEComposing || (event.nativeEvent && event.nativeEvent.isComposing));
     }
 
+    _onCutCopy = (event, type) => {
+        const selection = document.getSelection();
+        const text = selection.toString();
+        if (text) {
+            const {model} = this.props;
+            const range = getRangeForSelection(this._editorRef, model, selection);
+            const selectedParts = range.parts.map(p => p.serialize());
+            event.clipboardData.setData("application/x-riot-composer", JSON.stringify(selectedParts));
+            event.clipboardData.setData("text/plain", text); // so plain copy/paste works
+            if (type === "cut") {
+                // Remove the text, updating the model as appropriate
+                this._modifiedFlag = true;
+                replaceRangeAndMoveCaret(range, []);
+            }
+            event.preventDefault();
+        }
+    }
+
+    _onCopy = (event) => {
+        this._onCutCopy(event, "copy");
+    }
+
+    _onCut = (event) => {
+        this._onCutCopy(event, "cut");
+    }
+
     _onPaste = (event) => {
         const {model} = this.props;
         const {partCreator} = model;
-        const text = event.clipboardData.getData("text/plain");
-        if (text) {
-            this._modifiedFlag = true;
-            const range = getRangeForSelection(this._editorRef, model, document.getSelection());
-            const parts = parsePlainTextMessage(text, partCreator);
-            replaceRangeAndMoveCaret(range, parts);
-            event.preventDefault();
+        const partsText = event.clipboardData.getData("application/x-riot-composer");
+        let parts;
+        if (partsText) {
+            const serializedTextParts = JSON.parse(partsText);
+            const deserializedParts = serializedTextParts.map(p => partCreator.deserializePart(p));
+            parts = deserializedParts;
+        } else {
+            const text = event.clipboardData.getData("text/plain");
+            parts = parsePlainTextMessage(text, partCreator);
         }
+        this._modifiedFlag = true;
+        const range = getRangeForSelection(this._editorRef, model, document.getSelection());
+        replaceRangeAndMoveCaret(range, parts);
+        event.preventDefault();
     }
 
     _onInput = (event) => {
@@ -228,8 +273,8 @@ export default class BasicMessageEditor extends React.Component {
         const {caret, text} = getCaretOffsetAndText(this._editorRef, sel);
         const newText = text.substr(0, caret.offset) + textToInsert + text.substr(caret.offset);
         caret.offset += textToInsert.length;
-        this.props.model.update(newText, inputType, caret);
         this._modifiedFlag = true;
+        this.props.model.update(newText, inputType, caret);
     }
 
     // this is used later to see if we need to recalculate the caret
@@ -556,6 +601,8 @@ export default class BasicMessageEditor extends React.Component {
                 tabIndex="0"
                 onBlur={this._onBlur}
                 onFocus={this._onFocus}
+                onCopy={this._onCopy}
+                onCut={this._onCut}
                 onPaste={this._onPaste}
                 onKeyDown={this._onKeyDown}
                 ref={ref => this._editorRef = ref}

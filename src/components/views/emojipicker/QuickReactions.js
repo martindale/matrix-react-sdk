@@ -16,17 +16,19 @@ limitations under the License.
 
 import React from 'react';
 import PropTypes from 'prop-types';
-import EMOJIBASE from 'emojibase-data/en/compact.json';
 
-import sdk from '../../../index';
+import * as sdk from '../../../index';
 import { _t } from '../../../languageHandler';
+import {getEmojiFromUnicode} from "../../../emoji";
 
-const QUICK_REACTIONS = ["👍️", "👎️", "😄", "🎉", "😕", "❤️", "🚀", "👀"];
-EMOJIBASE.forEach(emoji => {
-    const index = QUICK_REACTIONS.indexOf(emoji.unicode);
-    if (index !== -1) {
-        QUICK_REACTIONS[index] = emoji;
+// We use the variation-selector Heart in Quick Reactions for some reason
+const QUICK_REACTIONS = ["👍", "👎", "😄", "🎉", "😕", "❤️", "🚀", "👀"].map(emoji => {
+    const data = getEmojiFromUnicode(emoji);
+    if (!data) {
+        throw new Error(`Emoji ${emoji} doesn't exist in emojibase`);
     }
+    // Prefer our unicode value for quick reactions as we sometimes use variation selectors.
+    return Object.assign({}, data, { unicode: emoji });
 });
 
 class QuickReactions extends React.Component {

@@ -17,7 +17,7 @@ limitations under the License.
 import url from 'url';
 import React from 'react';
 import PropTypes from 'prop-types';
-import sdk from '../../../index';
+import * as sdk from '../../../index';
 import { _t, pickBestLanguage } from '../../../languageHandler';
 
 import Matrix from 'matrix-js-sdk';
@@ -86,7 +86,7 @@ export default class TermsDialog extends React.PureComponent {
             case Matrix.SERVICE_TYPES.IS:
                 return <div>{_t("Identity Server")}<br />({host})</div>;
             case Matrix.SERVICE_TYPES.IM:
-                return <div>{_t("Integrations Manager")}<br />({host})</div>;
+                return <div>{_t("Integration Manager")}<br />({host})</div>;
         }
     }
 

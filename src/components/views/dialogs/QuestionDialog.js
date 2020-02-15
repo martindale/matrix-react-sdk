@@ -18,7 +18,7 @@ limitations under the License.
 import React from 'react';
 import createReactClass from 'create-react-class';
 import PropTypes from 'prop-types';
-import sdk from '../../../index';
+import * as sdk from '../../../index';
 import { _t } from '../../../languageHandler';
 
 export default createReactClass({
@@ -31,6 +31,7 @@ export default createReactClass({
         danger: PropTypes.bool,
         focus: PropTypes.bool,
         onFinished: PropTypes.func.isRequired,
+        headerImage: PropTypes.string,
     },
 
     getDefaultProps: function() {
@@ -63,6 +64,7 @@ export default createReactClass({
             <BaseDialog className="mx_QuestionDialog" onFinished={this.props.onFinished}
                 title={this.props.title}
                 contentId='mx_Dialog_content'
+                headerImage={this.props.headerImage}
                 hasCancel={this.props.hasCancelButton}
             >
                 <div className="mx_Dialog_content" id='mx_Dialog_content'>

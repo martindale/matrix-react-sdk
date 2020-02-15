@@ -29,12 +29,12 @@ import linkifyMatrix from './linkify-matrix';
 import _linkifyElement from 'linkifyjs/element';
 import _linkifyString from 'linkifyjs/string';
 import classNames from 'classnames';
-import MatrixClientPeg from './MatrixClientPeg';
+import {MatrixClientPeg} from './MatrixClientPeg';
 import url from 'url';
 
-import EMOJIBASE from 'emojibase-data/en/compact.json';
 import EMOJIBASE_REGEX from 'emojibase-regex';
 import {tryTransformPermalinkToLocalHref} from "./utils/permalinks/Permalinks";
+import {SHORTCODE_TO_EMOJI, getEmojiFromUnicode} from "./emoji";
 
 linkifyMatrix(linkify);
 
@@ -53,13 +53,10 @@ const ZWJ_REGEX = new RegExp("\u200D|\u2003", "g");
 const WHITESPACE_REGEX = new RegExp("\\s", "g");
 
 const BIGEMOJI_REGEX = new RegExp(`^(${EMOJIBASE_REGEX.source})+$`, 'i');
-const SINGLE_EMOJI_REGEX = new RegExp(`^(${EMOJIBASE_REGEX.source})$`, 'i');
 
 const COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
 const PERMITTED_URL_SCHEMES = ['http', 'https', 'ftp', 'mailto', 'magnet'];
-
-const VARIATION_SELECTOR = String.fromCharCode(0xFE0F);
 
 /*
  * Return true if the given string contains emoji
@@ -79,10 +76,7 @@ function mightContainEmoji(str) {
  * @return {String} The shortcode (such as :thumbup:)
  */
 export function unicodeToShortcode(char) {
-    // Check against both the char and the char with an empty variation selector appended because that's how
-    // emoji-base stores its base emojis which have variations. https://github.com/vector-im/riot-web/issues/9785
-    const emptyVariation = char + VARIATION_SELECTOR;
-    const data = EMOJIBASE.find(e => e.unicode === char || e.unicode === emptyVariation);
+    const data = getEmojiFromUnicode(char);
     return (data && data.shortcodes ? `:${data.shortcodes[0]}:` : '');
 }
 
@@ -94,7 +88,7 @@ export function unicodeToShortcode(char) {
  */
 export function shortcodeToUnicode(shortcode) {
     shortcode = shortcode.slice(1, shortcode.length - 1);
-    const data = EMOJIBASE.find(e => e.shortcodes && e.shortcodes.includes(shortcode));
+    const data = SHORTCODE_TO_EMOJI.get(shortcode);
     return data ? data.unicode : null;
 }
 
@@ -383,6 +377,7 @@ class TextHighlighter extends BaseHighlighter {
  * opts.stripReplyFallback: optional argument specifying the event is a reply and so fallback needs removing
  * opts.returnString: return an HTML string rather than JSX elements
  * opts.forComposerQuote: optional param to lessen the url rewriting done by sanitization, for quoting into composer
+ * opts.ref: React ref to attach to any React components returned (not compatible with opts.returnString)
  */
 export function bodyToHtml(content, highlights, opts={}) {
     const isHtmlMessage = content.format === "org.matrix.custom.html" && content.formatted_body;
@@ -465,8 +460,8 @@ export function bodyToHtml(content, highlights, opts={}) {
     });
 
     return isDisplayedWithHtml ?
-        <span key="body" className={className} dangerouslySetInnerHTML={{ __html: safeBody }} dir="auto" /> :
-        <span key="body" className={className} dir="auto">{ strippedBody }</span>;
+        <span key="body" ref={opts.ref} className={className} dangerouslySetInnerHTML={{ __html: safeBody }} dir="auto" /> :
+        <span key="body" ref={opts.ref} className={className} dir="auto">{ strippedBody }</span>;
 }
 
 /**
