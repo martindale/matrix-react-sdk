@@ -623,6 +623,10 @@ module.exports = createReactClass({
             );
         }
 
+        // TODO: restore below code to test registration flow
+        // ATTN: Eric
+        // <a className="mx_AuthBody_changeFlow" onClick={this.onRegisterClick} href="#">
+
         return (
             <AuthPage>
                 <AuthHeader />
@@ -635,7 +639,7 @@ module.exports = createReactClass({
                     { serverDeadSection }
                     { this.renderServerComponent() }
                     { this.renderLoginComponentForStep() }
-                    <a className="mx_AuthBody_changeFlow" onClick={this.onRegisterClick} href="#">
+                    <a className="mx_AuthBody_changeFlow" href="https://www.roleplaygateway.com/ucp.php?mode=register#form" target="_new">
                         { _t('Create account') }
                     </a>
                 </AuthBody>
