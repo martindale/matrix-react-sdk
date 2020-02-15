@@ -116,4 +116,4 @@ class DiceRoller {
   }
 }
 
-module.exports = DiceRoller;
+export { DiceRoller };

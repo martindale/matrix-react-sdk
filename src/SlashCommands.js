@@ -37,9 +37,9 @@ import {inviteUsersToRoom} from "./RoomInvite";
 // special functions
 import {
     slap
-} from "./utils/fabric";
+} from './utils/fabric';
 
-const DiceRoller = require('./utils/dice');
+import { DiceRoller } from './utils/dice';
 const roller = new DiceRoller();
 
 const singleMxcUpload = async () => {
