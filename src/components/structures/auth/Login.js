@@ -659,7 +659,7 @@ export default createReactClass({
                     { serverDeadSection }
                     { this.renderServerComponent() }
                     { this.renderLoginComponentForStep() }
-                    <a className="mx_AuthBody_changeFlow" href="https://www.roleplaygateway.com/ucp.php?mode=register#form" target="_new">
+                    <a className="mx_AuthBody_changeFlow" href="https://www.roleplaygateway.com/ucp.php?mode=register#form" target="_blank">
                         { _t('Create account') }
                     </a>
                 </AuthBody>
