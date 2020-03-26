@@ -28,12 +28,17 @@ export const PendingActionSpinner = ({text}) => {
     </div>;
 };
 
-const EncryptionInfo = ({pending, member, onStartVerification}) => {
+const EncryptionInfo = ({waitingForOtherParty, waitingForNetwork, member, onStartVerification, isRoomEncrypted}) => {
     let content;
-    if (pending) {
-        const text = _t("Waiting for %(displayName)s to accept…", {
-            displayName: member.displayName || member.name || member.userId,
-        });
+    if (waitingForOtherParty || waitingForNetwork) {
+        let text;
+        if (waitingForOtherParty) {
+            text = _t("Waiting for %(displayName)s to accept…", {
+                displayName: member.displayName || member.name || member.userId,
+            });
+        } else {
+            text = _t("Accepting…");
+        }
         content = <PendingActionSpinner text={text} />;
     } else {
         const AccessibleButton = sdk.getComponent('elements.AccessibleButton');
@@ -44,13 +49,27 @@ const EncryptionInfo = ({pending, member, onStartVerification}) => {
         );
     }
 
-    return <React.Fragment>
-        <div className="mx_UserInfo_container">
-            <h3>{_t("Encryption")}</h3>
+    let description;
+    if (isRoomEncrypted) {
+        description = (
             <div>
                 <p>{_t("Messages in this room are end-to-end encrypted.")}</p>
                 <p>{_t("Your messages are secured and only you and the recipient have the unique keys to unlock them.")}</p>
             </div>
+        );
+    } else {
+        description = (
+            <div>
+                <p>{_t("Messages in this room are not end-to-end encrypted.")}</p>
+                <p>{_t("In encrypted rooms, your messages are secured and only you and the recipient have the unique keys to unlock them.")}</p>
+            </div>
+        );
+    }
+
+    return <React.Fragment>
+        <div className="mx_UserInfo_container">
+            <h3>{_t("Encryption")}</h3>
+            { description }
         </div>
         <div className="mx_UserInfo_container">
             <h3>{_t("Verify User")}</h3>

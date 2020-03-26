@@ -23,6 +23,7 @@ import dis from "./dispatcher";
 import * as Rooms from "./Rooms";
 import DMRoomMap from "./utils/DMRoomMap";
 import {getAddressType} from "./UserAddress";
+import SettingsStore from "./settings/SettingsStore";
 
 /**
  * Create a new room, and switch to it.
@@ -35,6 +36,8 @@ import {getAddressType} from "./UserAddress";
  * @param {bool=} opts.guestAccess Whether to enable guest access.
  *     Default: True
  * @param {bool=} opts.encryption Whether to enable encryption.
+ *     Default: False
+ * @param {bool=} opts.inlineErrors True to raise errors off the promise instead of resolving to null.
  *     Default: False
  *
  * @returns {Promise} which resolves to the room id, or null if the
@@ -139,6 +142,9 @@ export default function createRoom(opts) {
         }
         return roomId;
     }, function(err) {
+        // Raise the error if the caller requested that we do so.
+        if (opts.inlineErrors) throw err;
+
         // We also failed to join the room (this sets joining to false in RoomViewStore)
         dis.dispatch({
             action: 'join_room_error',
@@ -168,10 +174,50 @@ export function findDMForUser(client, userId) {
             return member && (member.membership === "invite" || member.membership === "join");
         }
         return false;
+    }).sort((r1, r2) => {
+        return r2.getLastActiveTimestamp() -
+            r1.getLastActiveTimestamp();
     });
     if (suitableDMRooms.length) {
         return suitableDMRooms[0];
     }
+}
+
+/*
+ * Try to ensure the user is already in the megolm session before continuing
+ * NOTE: this assumes you've just created the room and there's not been an opportunity
+ * for other code to run, so we shouldn't miss RoomState.newMember when it comes by.
+ */
+export async function _waitForMember(client, roomId, userId, opts = { timeout: 1500 }) {
+    const { timeout } = opts;
+    let handler;
+    return new Promise((resolve) => {
+        handler = function(_event, _roomstate, member) {
+            if (member.userId !== userId) return;
+            if (member.roomId !== roomId) return;
+            resolve(true);
+        };
+        client.on("RoomState.newMember", handler);
+
+        /* We don't want to hang if this goes wrong, so we proceed and hope the other
+           user is already in the megolm session */
+        setTimeout(resolve, timeout, false);
+    }).finally(() => {
+        client.removeListener("RoomState.newMember", handler);
+    });
+}
+
+/*
+ * Ensure that for every user in a room, there is at least one device that we
+ * can encrypt to.
+ */
+export async function canEncryptToAllUsers(client, userIds) {
+    const usersDeviceMap = await client.downloadKeys(userIds);
+    // { "@user:host": { "DEVICE": {...}, ... }, ... }
+    return Object.values(usersDeviceMap).every((userDevices) =>
+        // { "DEVICE": {...}, ... }
+        Object.keys(userDevices).length > 0,
+    );
 }
 
 export async function ensureDMExists(client, userId) {
@@ -180,7 +226,12 @@ export async function ensureDMExists(client, userId) {
     if (existingDMRoom) {
         roomId = existingDMRoom.roomId;
     } else {
-        roomId = await createRoom({dmUserId: userId, spinner: false, andView: false});
+        let encryption;
+        if (SettingsStore.isFeatureEnabled("feature_cross_signing")) {
+            encryption = canEncryptToAllUsers(client, [userId]);
+        }
+        roomId = await createRoom({encryption, dmUserId: userId, spinner: false, andView: false});
+        await _waitForMember(client, roomId, userId);
     }
     return roomId;
 }

@@ -61,6 +61,7 @@ export default class EventIndex extends EventEmitter {
         client.on('Room.timeline', this.onRoomTimeline);
         client.on('Event.decrypted', this.onEventDecrypted);
         client.on('Room.timelineReset', this.onTimelineReset);
+        client.on('Room.redaction', this.onRedaction);
     }
 
     /**
@@ -74,6 +75,7 @@ export default class EventIndex extends EventEmitter {
         client.removeListener('Room.timeline', this.onRoomTimeline);
         client.removeListener('Event.decrypted', this.onEventDecrypted);
         client.removeListener('Room.timelineReset', this.onTimelineReset);
+        client.removeListener('Room.redaction', this.onRedaction);
     }
 
     /**
@@ -211,6 +213,23 @@ export default class EventIndex extends EventEmitter {
     }
 
     /*
+     * The Room.redaction listener.
+     *
+     * Removes a redacted event from our event index.
+     */
+    onRedaction = async (ev, room) => {
+        // We only index encrypted rooms locally.
+        if (!MatrixClientPeg.get().isRoomEncrypted(room.roomId)) return;
+        const indexManager = PlatformPeg.get().getEventIndexingManager();
+
+        try {
+            await indexManager.deleteEvent(ev.getAssociatedId());
+        } catch (e) {
+            console.log("EventIndex: Error deleting event from index", e);
+        }
+    }
+
+    /*
      * The Room.timelineReset listener.
      *
      * Listens for timeline resets that are caused by a limited timeline to
@@ -241,6 +260,33 @@ export default class EventIndex extends EventEmitter {
     }
 
     /**
+     * Check if an event should be added to the event index.
+     *
+     * Most notably we filter events for which decryption failed, are redacted
+     * or aren't of a type that we know how to index.
+     *
+     * @param {MatrixEvent} ev The event that should checked.
+     * @returns {bool} Returns true if the event can be indexed, false
+     * otherwise.
+     */
+    isValidEvent(ev) {
+        const isUsefulType = ["m.room.message", "m.room.name", "m.room.topic"].includes(ev.getType());
+        const validEventType = isUsefulType && !ev.isRedacted() && !ev.isDecryptionFailure();
+
+        let validMsgType = true;
+
+        if (ev.getType() === "m.room.message" && !ev.isRedacted()) {
+            // Expand this if there are more invalid msgtypes.
+            const msgtype = ev.getContent().msgtype;
+
+            if (!msgtype) validMsgType = false;
+            else validMsgType = !msgtype.startsWith("m.key.verification");
+        }
+
+        return validEventType && validMsgType;
+    }
+
+    /**
      * Queue up live events to be added to the event index.
      *
      * @param {MatrixEvent} ev The event that should be added to the index.
@@ -248,10 +294,7 @@ export default class EventIndex extends EventEmitter {
     async addLiveEventToIndex(ev) {
         const indexManager = PlatformPeg.get().getEventIndexingManager();
 
-        if (["m.room.message", "m.room.name", "m.room.topic"]
-            .indexOf(ev.getType()) == -1) {
-            return;
-        }
+        if (!this.isValidEvent(ev)) return;
 
         const jsonEvent = ev.toJSON();
         const e = ev.isEncrypted() ? jsonEvent.decrypted : jsonEvent;
@@ -349,6 +392,21 @@ export default class EventIndex extends EventEmitter {
                     checkpoint.roomId, checkpoint.token, this._eventsPerCrawl,
                     checkpoint.direction);
             } catch (e) {
+                if (e.httpStatus === 403) {
+                    console.log("EventIndex: Removing checkpoint as we don't have ",
+                                "permissions to fetch messages from this room.", checkpoint);
+                    try {
+                        await indexManager.removeCrawlerCheckpoint(checkpoint);
+                    } catch (e) {
+                        console.log("EventIndex: Error removing checkpoint", checkpoint, e);
+                        // We don't push the checkpoint here back, it will
+                        // hopefully be removed after a restart. But let us
+                        // ignore it for now as we don't want to hammer the
+                        // endpoint.
+                    }
+                    continue;
+                }
+
                 console.log("EventIndex: Error crawling events:", e);
                 this.crawlerCheckpoints.push(checkpoint);
                 continue;
@@ -407,22 +465,16 @@ export default class EventIndex extends EventEmitter {
             // Let us wait for all the events to get decrypted.
             await Promise.all(decryptionPromises);
 
-            // We filter out events for which decryption failed, are redacted
-            // or aren't of a type that we know how to index.
-            const isValidEvent = (value) => {
-                return ([
-                        "m.room.message",
-                        "m.room.name",
-                        "m.room.topic",
-                    ].indexOf(value.getType()) >= 0
-                        && !value.isRedacted() && !value.isDecryptionFailure()
-                );
-            };
-
             // TODO if there are no events at this point we're missing a lot
             // decryption keys, do we want to retry this checkpoint at a later
             // stage?
-            const filteredEvents = matrixEvents.filter(isValidEvent);
+            const filteredEvents = matrixEvents.filter(this.isValidEvent);
+
+            // Collect the redaction events so we can delete the redacted events
+            // from the index.
+            const redactionEvents = matrixEvents.filter((ev) => {
+                return ev.getType() === "m.room.redaction";
+            });
 
             // Let us convert the events back into a format that EventIndex can
             // consume.
@@ -455,6 +507,11 @@ export default class EventIndex extends EventEmitter {
             );
 
             try {
+                for (let i = 0; i < redactionEvents.length; i++) {
+                    const ev = redactionEvents[i];
+                    await indexManager.deleteEvent(ev.getAssociatedId());
+                }
+
                 const eventsAlreadyAdded = await indexManager.addHistoricEvents(
                     events, newCheckpoint, checkpoint);
                 // If all events were already indexed we assume that we catched
@@ -507,7 +564,8 @@ export default class EventIndex extends EventEmitter {
         const indexManager = PlatformPeg.get().getEventIndexingManager();
         this.removeListeners();
         this.stopCrawler();
-        return indexManager.closeEventIndex();
+        await indexManager.closeEventIndex();
+        return;
     }
 
     /**
@@ -658,14 +716,20 @@ export default class EventIndex extends EventEmitter {
             }
         });
 
+        let ret = false;
+        let paginationToken = "";
+
         // Set the pagination token to the oldest event that we retrieved.
         if (matrixEvents.length > 0) {
-            timeline.setPaginationToken(matrixEvents[matrixEvents.length - 1].getId(), EventTimeline.BACKWARDS);
-            return true;
-        } else {
-            timeline.setPaginationToken("", EventTimeline.BACKWARDS);
-            return false;
+            paginationToken = matrixEvents[matrixEvents.length - 1].getId();
+            ret = true;
         }
+
+        console.log("EventIndex: Populating file panel with", matrixEvents.length,
+                    "events and setting the pagination token to", paginationToken);
+
+        timeline.setPaginationToken(paginationToken, EventTimeline.BACKWARDS);
+        return ret;
     }
 
     /**

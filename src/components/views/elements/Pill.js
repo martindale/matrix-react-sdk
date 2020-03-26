@@ -23,7 +23,6 @@ import classNames from 'classnames';
 import { Room, RoomMember } from 'matrix-js-sdk';
 import PropTypes from 'prop-types';
 import {MatrixClientPeg} from '../../../MatrixClientPeg';
-import { getDisplayAliasForRoom } from '../../../Rooms';
 import FlairStore from "../../../stores/FlairStore";
 import {getPrimaryPermalinkEntity} from "../../../utils/permalinks/Permalinks";
 import MatrixClientContext from "../../../contexts/MatrixClientContext";
@@ -128,7 +127,8 @@ const Pill = createReactClass({
             case Pill.TYPE_ROOM_MENTION: {
                 const localRoom = resourceId[0] === '#' ?
                     MatrixClientPeg.get().getRooms().find((r) => {
-                        return r.getAliases().includes(resourceId);
+                        return r.getCanonicalAlias() === resourceId ||
+                               r.getAltAliases().includes(resourceId);
                     }) : MatrixClientPeg.get().getRoom(resourceId);
                 room = localRoom;
                 if (!localRoom) {
@@ -236,12 +236,12 @@ const Pill = createReactClass({
             case Pill.TYPE_ROOM_MENTION: {
                 const room = this.state.room;
                 if (room) {
-                    linkText = (room ? getDisplayAliasForRoom(room) : null) || resource;
+                    linkText = resource;
                     if (this.props.shouldShowPillAvatar) {
                         avatar = <RoomAvatar room={room} width={16} height={16} aria-hidden="true" />;
                     }
-                    pillClass = 'mx_RoomPill';
                 }
+                pillClass = 'mx_RoomPill';
             }
                 break;
             case Pill.TYPE_GROUP_MENTION: {

@@ -46,9 +46,18 @@ export default class ManageEventIndexDialog extends React.Component {
         };
     }
 
-    async updateCurrentRoom(room) {
+    updateCurrentRoom = async (room) => {
         const eventIndex = EventIndexPeg.get();
-        const stats = await eventIndex.getStats();
+        let stats;
+
+        try {
+            stats = await eventIndex.getStats();
+        } catch {
+            // This call may fail if sporadically, not a huge issue as we will
+            // try later again and probably succeed.
+            return;
+        }
+
         let currentRoom = null;
 
         if (room) currentRoom = room.name;
@@ -63,13 +72,13 @@ export default class ManageEventIndexDialog extends React.Component {
             roomCount: roomCount,
             currentRoom: currentRoom,
         });
-    }
+    };
 
     componentWillUnmount(): void {
         const eventIndex = EventIndexPeg.get();
 
         if (eventIndex !== null) {
-            eventIndex.removeListener("changedCheckpoint", this.updateCurrentRoom.bind(this));
+            eventIndex.removeListener("changedCheckpoint", this.updateCurrentRoom);
         }
     }
 
@@ -83,14 +92,21 @@ export default class ManageEventIndexDialog extends React.Component {
         const eventIndex = EventIndexPeg.get();
 
         if (eventIndex !== null) {
-            eventIndex.on("changedCheckpoint", this.updateCurrentRoom.bind(this));
+            eventIndex.on("changedCheckpoint", this.updateCurrentRoom);
 
-            const stats = await eventIndex.getStats();
+            try {
+                const stats = await eventIndex.getStats();
+                eventIndexSize = stats.size;
+                eventCount = stats.eventCount;
+            } catch {
+                // This call may fail if sporadically, not a huge issue as we
+                // will try later again in the updateCurrentRoom call and
+                // probably succeed.
+            }
+
             const roomStats = eventIndex.crawlingRooms();
-            eventIndexSize = stats.size;
             crawlingRoomsCount = roomStats.crawlingRooms.size;
             roomCount = roomStats.totalRooms.size;
-            eventCount = stats.eventCount;
 
             const room = eventIndex.currentRoom();
             if (room) currentRoom = room.name;
@@ -125,14 +141,16 @@ export default class ManageEventIndexDialog extends React.Component {
         let crawlerState;
 
         if (this.state.currentRoom === null) {
-            crawlerState = _t("Not currently downloading messages for any room.");
+            crawlerState = _t("Not currently indexing messages for any room.");
         } else {
             crawlerState = (
-                    _t("Downloading mesages for %(currentRoom)s.", { currentRoom: this.state.currentRoom })
+                    _t("Currently indexing: %(currentRoom)s.", { currentRoom: this.state.currentRoom })
             );
         }
 
         const Field = sdk.getComponent('views.elements.Field');
+
+        const doneRooms = Math.max(0, (this.state.roomCount - this.state.crawlingRoomsCount));
 
         const eventIndexingSettings = (
             <div>
@@ -142,13 +160,13 @@ export default class ManageEventIndexDialog extends React.Component {
                     )
                 }
                 <div className='mx_SettingsTab_subsectionText'>
+                    {crawlerState}<br />
                     {_t("Space used:")} {formatBytes(this.state.eventIndexSize, 0)}<br />
                     {_t("Indexed messages:")} {formatCountLong(this.state.eventCount)}<br />
-                    {_t("Indexed rooms:")} {_t("%(crawlingRooms)s out of %(totalRooms)s", {
-                        crawlingRooms: formatCountLong(this.state.crawlingRoomsCount),
+                    {_t("Indexed rooms:")} {_t("%(doneRooms)s out of %(totalRooms)s", {
+                        doneRooms: formatCountLong(doneRooms),
                         totalRooms: formatCountLong(this.state.roomCount),
                     })} <br />
-                    {crawlerState}<br />
                     <Field
                         id={"crawlerSleepTimeMs"}
                         label={_t('Message downloading sleep time(ms)')}
